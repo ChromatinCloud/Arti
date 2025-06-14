@@ -1,0 +1,10 @@
+name: annotation-engine
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - pydantic==2.7.*
+      - click==8.1.*
+      - pandas==2.2.*

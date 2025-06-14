@@ -1,0 +1,4 @@
+# Placeholder mapping: tumor_type ➜ list of canonical driver genes
+lung:
+  - EGFR
+  - KRAS

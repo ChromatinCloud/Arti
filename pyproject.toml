@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "annotation-engine"
+version = "0.0.1"
+description = "Minimal AMP/CGC/OncoKB annotation starter"
+authors = ["<YOUR NAME> <you@example.com>"]
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.7"
+click = "^8.1"
+pandas = "^2.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+ruff   = "^0.4"

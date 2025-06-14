@@ -1,0 +1,371 @@
+===============================================================
+=============== Candidate Implementation Guide ================
+===============================================================
+
+
+Modular Architecture Plan for Clinical Variant Interpretation Platform
+System Overview
+
+This platform is designed as a modular, web-based clinical variant interpretation system supporting both germline and somatic variant analysis. It integrates dozens of knowledge bases (~47 KBs) and multiple software tools (15–20 packages) to perform six core tasks: (1) variant annotation, (2) ACMG/AMP guideline classification, (3) OncoKB rule application (cancer actionability), (4) ClinGen/CGC/VICC oncogenicity rule application, (5) rule/tier evidence quantification, and (6) clinical variant interpretation databasing. The architecture is Python-first (avoiding R and heavy dependencies) to ease local installation and eventual cloud deployment. Key components are organized into modular layers responsible for intake, annotation, rule logic, text generation, data storage, and the UI/API. This modular approach enables clear separation of concerns, making the system easier to maintain and extend. Below we detail each module’s role and the technologies/libraries ideally suited for it. A summary table mapping core tasks to data sources and logic is included at the end for clarity.
+Input Intake Module
+
+Responsibility: Accept variant input via a VCF file upload or API call and prepare it for analysis. This module handles file parsing, validation, and standardization of input variants.
+
+    VCF Parsing: Use a Python library such as pysam (which provides a VariantFile API) or cyvcf2 for fast parsing of VCF files. These libraries are lightweight and avoid external runtime dependencies. They will extract variant fields (chromosome, position, REF/ALT alleles, genotype info, etc.) and represent variants in a Python object or dict for downstream processing.
+
+    API Intake: If variants are submitted via an API request (e.g. JSON payload), define a schema for variant data (chrom, pos, ref, alt, sample metadata, etc.) and use Pydantic (built into FastAPI) to validate the input. This ensures the system can ingest variants programmatically in addition to file uploads.
+
+    Pre-processing: Minimal filtering or normalization can be done here (e.g. left-align indels or ensure consistent reference genome identifiers). Complex preparation (like lifting over genome builds) should be minimized to keep this module simple and fast.
+
+Rationale: Keeping the intake module simple helps maintain low latency. For ~20 variants, parsing is extremely quick (fractions of a second). By using Python-based parsing and validation, we avoid calling external processes. This module produces a standardized internal representation of variants, which is then passed to the annotation module.
+Variant Annotation Module
+
+Responsibility: Enrich each variant with comprehensive annotations from a wide array of knowledge bases. This is the core data-gathering step, pulling in gene context, predicted variant effects, population frequencies, known clinical significance, and more.
+
+    Annotation Engine: Leverage Ensembl VEP (Variant Effect Predictor) as the primary annotation tool, configured with plugins and local data caches. VEP can produce variant consequence predictions (impact on genes/transcripts) and has plugins to integrate many data sources in one pass
+    sigven.github.io
+    . For example, VEP (release 113+) with the latest GENCODE reference can annotate gene context and sequence ontology terms for each variant
+    sigven.github.io
+    . It can also incorporate:
+
+        Population Frequencies: gnomAD allele frequencies and 1000 Genomes data via VEP’s built-in support or custom scripts
+        sigven.github.io
+        . Rare variant checks (e.g. “absent in population databases”) use this data.
+
+        Functional Predictions: Use the dbNSFP plugin to retrieve in silico predictions (SIFT, PolyPhen-2, CADD, REVEL, etc.) for missense variants
+        sigven.github.io
+        . This provides a batch of pathogenicity predictions from multiple algorithms via one integration.
+
+        Known Variant Databases: Annotate with ClinVar to see if the variant is a known pathogenic or benign variant
+        sigven.github.io
+        . This can be done by providing ClinVar VCF as a custom file to VEP or using an offline database. Somatic databases like COSMIC or a cancer hotspots list can also be integrated (e.g. VEP’s plugin for COSMIC if license available, or a simple overlap with a BED of known hotspots
+        sigven.github.io
+        ).
+
+        Gene and Region Annotations: Add gene-level information such as whether the gene is a known disease gene or cancer gene. For example, use the Cancer Gene Census (CGC) list from COSMIC or ClinGen gene disease validity lists to tag if a gene is oncogenic or tumor suppressor. Other knowledge bases like CancerMine or OncoKB gene annotations can help identify oncogenes vs tumor suppressors
+        sigven.github.io
+        sigven.github.io
+        . Additionally, annotate if the variant falls in a conserved region (e.g. phyloP/phastCons scores) or functional domains (from UniProt/Pfam
+        sigven.github.io
+        ).
+
+    Local Data Bundles: To minimize runtime calls, maintain local flatfiles for these knowledge bases. Many annotation resources can be kept as tabix-indexed files or SQLite/Parquet for quick querying. For instance, PCGR (Personal Cancer Genome Reporter) uses a comprehensive reference data bundle to allow offline annotation, including ClinVar, CIViC, gnomAD, Cancer Hotspots, etc
+    sigven.github.io
+    . Our system should similarly package required data so that VEP/plugins or Python code can query them locally without external API calls for each variant. This improves speed and avoids internet dependency.
+
+    Alternative Tools: If VEP is too heavy for some users, an alternative is ANNOVAR or an all-Python solution (e.g. using pysam for overlap queries and custom logic). However, VEP is well-maintained and handles transcript annotations robustly, so we favor it despite being Perl-based (it can be wrapped in Docker or called via CLI). Importantly, VEP’s output will be parsed by our Python code (e.g. using VEP’s JSON output mode) to feed downstream modules.
+
+Output: The annotation module produces a rich structured representation of each variant (e.g. a Python dict or dataclass) with all relevant annotation fields. This includes gene name, variant effect (missense, nonsense, splice, etc.), population frequencies, ClinVar clinical significance if available, in-silico scores, whether it’s in known cancer hotspots or gene lists, etc. By centralizing annotation through one engine and data bundle, we reduce complexity — many knowledge bases are accessed in one sweep. This data will support all subsequent rule evaluations and interpretations.
+Rule Logic & Classification Engine
+
+Responsibility: Apply formal variant interpretation guidelines and rulesets (ACMG/AMP for germline, OncoKB levels, ClinGen/CGC/VICC oncogenicity rules for somatic) to the annotated variants. This module encapsulates the decision logic that translates raw annotations into structured classifications (pathogenicity, tiers, etc.). It can be organized into sub-components or services for each major rule set, all operating on the annotation output:
+
+    ACMG/AMP Germline Classification: Implement the ACMG/AMP 2015 guidelines (and updates) for germline variant pathogenicity. Each ACMG criterion (PVS1, PS1–PS4, PM1–PM6, PP1–PP5, BA1, BS1–BS4, BP1–BP7) should be evaluated based on the annotations. For example:
+
+        PVS1 (Null variant in LOF gene): Check if the variant is a truncating/splice variant in a gene known to cause disease via loss-of-function. This uses consequence from VEP and gene disease mechanism knowledge (e.g. ClinGen haploinsufficiency lists or gene-specific rules).
+
+        PM2 (Absent from controls): Use gnomAD frequency annotation – if frequency == 0 or below threshold, this criterion is met auto-acmg.readthedocs.io PP3/BP4 (Multiple computational predictors): Use the dbNSFP scores – e.g. if many tools predict deleterious, PP3 is satisfied; if mostly benign, maybe BP4
+        auto-acmg.readthedocs.io.
+
+        ClinVar supporting criteria: If ClinVar shows the exact variant as Pathogenic (with multiple submissions), one might invoke PS1 (if same amino acid change as known pathogenic) or PP5 (reputable source).
+        Each rule can be coded as a function that returns true/false or weight. We can leverage existing open-source implementations – for instance, AutoACMG is a Python toolkit that automates evaluating ACMG criteria and classifying variants. It supports a range of ACMG criteria and can serve as a reference or even be integrated directly to avoid reinventing the wheel.
+        Once criteria are evaluated, apply the ACMG scoring logic to assign a pathogenicity class (Pathogenic, Likely Pathogenic, VUS, Likely Benign, Benign)
+        auto-acmg.readthedocs.io. This classification and the criteria evidence will be part of the output.
+
+    OncoKB Rules (Actionability): For somatic variants, incorporate OncoKB knowledge to determine therapeutic, diagnostic, or prognostic significance. OncoKB is a curated precision oncology knowledge base that assigns evidence levels to variants depending on clinical actionability
+    oncokb.org
+    . The module will take each variant (with gene, amino acid change, tumor type if provided) and query OncoKB for any known annotations: e.g. BRAF V600E might be Level 1 (FDA-recognized therapy). Tools:
+
+        Use the OncoKB REST API for up-to-date information if internet access is available and latency is acceptable (OncoKB provides a Swagger API for querying variant annotations). The API is straightforward but requires registration; the maintainers encourage using the API for the latest data rather than local copies
+        faq.oncokb.org.
+
+        Alternatively, for local/offline use, obtain a licensed OncoKB data file (OncoKB may provide downloadable datasets for academic use). If available, load it as a local database or JSON and look up variants by genomic position or amino acid change.
+
+        Map OncoKB evidence levels to an internal tier system. Also capture associated information (e.g. drug names, cancer types, reference citations) for report generation.
+
+    CGC/VICC Oncogenicity Classification: Apply the ClinGen/Cancer Genomics Consortium/VICC somatic oncogenicity guidelines (published 2022) to classify whether a variant is oncogenic (somatic “pathogenic”) or likely neutral in cancer
+    sigven.github.io
+    . This is analogous to ACMG but for tumor variants. Criteria include: is the variant in a known oncogene or tumor suppressor gene, is it a hotspot or recurrent mutation, what is the functional impact, etc. Implementation approach:
+
+        Use gene knowledge bases like the Cancer Gene Census (CGC) to know if a gene is a known cancer driver. If so, the presence of certain mutation types might be more suspicious (e.g. gain-of-function missense in oncogenes, truncating in tumor suppressors).
+
+        Utilize recurrence data: e.g. Cancer Hotspots or TCGA mutation frequency data
+        sigven.github.io
+        . If the variant has been observed multiple times in tumors (especially at the same codon), it supports oncogenicity.
+
+        Use functional impact predictors and known effect: if OncoKB or CIViC labels the variant as oncogenic, that can directly satisfy criteria. CIViC (Clinical Interpretation of Variants in Cancer) is another knowledge base of cancer variant evidence
+        sigven.github.io
+        – accepted “oncogenic” or “likely oncogenic” entries from CIViC could be integrated as supporting evidence.
+
+        Implement the scoring or rules from the published guidelines. For example, the guidelines define tiers like oncogenic, likely oncogenic, uncertain significance, likely benign, benign for somatic variants, based on combinations of evidence criteria (very similar in spirit to ACMG’s pathogenic/benign evidence levels)
+        sigven.github.io
+        .
+        A recent tool, OncoVI, provides a fully automated Python implementation of these somatic oncogenicity rules (as noted in a 2024 medRxiv preprint). We can take inspiration or potentially reuse logic from such implementations to ensure our rule application is thorough and validated.
+
+    Rule/Tier Quantification and Aggregation: This sub-module takes the outputs of all rule evaluations and synthesizes the final classifications/tier assignments. Essentially, it’s the decision layer that quantifies how many criteria were met and of what strength, then produces:
+
+        For each variant, a pathogenicity classification (if germline ACMG applicable) with an explanation of criteria met (e.g. “Likely Pathogenic based on 1 strong (PVS1) and 3 moderate criteria”).
+
+        For somatic contexts, an oncogenicity classification (Oncogenic/Likely Oncogenic/etc.) based on the CGC/VICC rules outcome.
+
+        An actionability tier for cancer (e.g. AMP/ASCO/CAP Tier I–IV). The AMP/ASCO/CAP guidelines for somatic variants define Tier 1 (validated clinical biomarkers), Tier 2 (potential clinical significance), etc. OncoKB evidence levels can be mapped to these tiers – e.g. OncoKB level 1/2 correspond to AMP Tier I/II (depending on on-label/off-label use). Our system should consolidate the knowledge: If a variant has an OncoKB level or a CIViC/CGI evidence of clinical actionability, assign the appropriate tier. PCGR, for instance, maps variants to therapeutic implications according to AMP/ASCO/CAP guideline tiers.
+        If germline and somatic interpretations both apply (e.g. a variant in a cancer predisposition gene), the module can handle both classification types separately. For example, BRCA1 frameshift might be “Pathogenic (germline)” and also “Oncogenic (somatic)”, and may have actionability (PARP inhibitor sensitivity). The architecture allows multiple rule sets to be applied as relevant.
+
+All these rule logic components should be written in Python (or use Python libraries) to adhere to the Python-first requirement. By structuring each ruleset’s logic in its own class or function set, we maintain modularity – e.g. new rulesets or guideline updates can be incorporated by adding/modifying that module without affecting others. The result from this engine is a structured set of interpretation results for each variant: including classifications (pathogenicity category, actionability tier, etc.), which criteria were met, and perhaps a numeric score or rank if applicable. These results feed directly into the report/text generation.
+Canned Text Generation and Reporting
+
+Responsibility: Construct human-readable interpretive text and summary reports for the variants, based on the annotations and rule outcomes. This involves two levels of text generation: canned text snippets for individual evidence items, and higher-level interpretive text assembly to form a cohesive report or variant explanation.
+
+    Canned Text Snippets: For each evidence category or rule, prepare template sentences stored in a template library (e.g. simple Jinja2 templates or even a flat file with placeholders). Examples:
+
+        For a population frequency result: “This variant is absent from population databases (gnomAD, 1000 Genomes), meeting the PM2 criterion for rarity.”
+
+        For computational predictions: “Multiple in-silico tools (SIFT, PolyPhen-2, CADD) predict a deleterious effect, supporting pathogenicity (PP3).”
+
+        For ClinVar info: “ClinVar lists this variant as Pathogenic (ClinVar ID: 12345) with 5 submitters, providing strong prior evidence (PS1/PP5).”
+
+        For Oncogenicity evidence: “The variant lies in a known cancer hotspot (observed in 5 tumors in TCGA
+        sigven.github.io
+        ) and affects an oncogene (EGFR), supporting it as oncogenic.”
+
+        For OncoKB actionability: “OncoKB level 1: FDA-approved therapy exists targeting this mutation (e.g., EGFR T790M with osimertinib)
+        oncokb.org
+        .”
+        Each snippet is parameterized by variant-specific data (gene name, criteria codes, IDs, etc.) which the system will fill in. Storing these texts separately from code makes it easy to update phrasing without altering logic.
+
+    Interpretive Text Construction: Using the above snippets and the structured results, construct a narrative for each variant (or for the case as a whole). The text generation module will likely produce:
+
+        Per-Variant Summary: A concise paragraph or two explaining the classification. This would include: the final classification (e.g. “Likely Pathogenic”), followed by rationale sentences. The rationale is built by selecting relevant canned snippets for each rule or evidence that contributed. For clarity, the text can be ordered by evidence strength (e.g. start with strong criteria like PVS1, then moderate, etc.). For somatic variants, the summary would mention oncogenicity and any therapeutic implications (tiers).
+
+        Structured Outputs: In addition to narrative text, the system returns structured data (JSON) for each variant including all annotations and interpretations. This can be used to render tables or drive the UI. For example, an output might have fields: acmg_classification, met_criteria: [...], oncogenicity_classification, actionability_tier, recommended_guidelines etc., along with the free-text interpretation.
+
+        Report Aggregation: If needed, compile multi-variant reports. For a given sample/patient, multiple variants might be identified – the module can generate a combined report (for example, listing all pathogenic or actionable variants first with their narratives, and possibly listing benign findings separately or not at all). The architecture supports generating an HTML or PDF report. Initially, a simple approach is to generate structured JSON and basic HTML; later a more polished report (with charts or references) can be built.
+
+We recommend using Jinja2 or a similar template engine in Python for assembling the final text and reports. This allows mixing fixed template text with variables from the data model. Additionally, the use of templates encourages reuse – e.g. the same phrasing for a criterion can be used across all variants, ensuring consistency.
+
+Canned text approach in practice: Many existing tools use canned interpretations for efficiency. For example, Illumina’s Emedgene platform and others generate suggested classifications with explanatory text. Our design follows this best practice – automated text that can later be manually reviewed or edited if needed. It’s worth noting that PeCanPIE (St. Jude’s pediatric cancer variant interpretation tool) also produces automated classifications and provides a UI for experts to review and adjust interpretations
+stjude.org
+. Our system’s text generation forms the first draft of an interpretation that could be used directly or confirmed by a clinician.
+Data Storage and Knowledge Base Management
+
+This module covers two areas: (a) maintaining the numerous knowledge bases locally in an efficient manner, and (b) storing the platform’s outputs (variant interpretations and user data) for retrieval and future reference.
+
+    Local Knowledge Base Storage: To support rapid annotation, we will maintain local copies of relevant databases, updated on a regular schedule. Strategies for this include:
+
+        Flat Files and Indexing: Many data sources (ClinVar, gnomAD, COSMIC, CIViC, etc.) provide VCFs or TSV files. These can be stored on disk and indexed for quick lookup (e.g. tabix indexes for VCF/TSV by genomic coordinate). The annotation module (VEP or custom) can query these indexes to retrieve info for a given variant almost instantly. For example, a gnomAD sites VCF can be queried by position to get population allele counts; ClinVar VCF can be queried to get any entry for the variant.
+
+        Parquet/Feather for Large Tables: For certain knowledge bases, loading the entire file into memory might be heavy. Using a columnar format like Apache Parquet can accelerate queries. We could convert databases like ClinVar or gnomAD into Parquet tables partitioned by chromosome. Then use Python’s PyArrow/Pandas to quickly filter for the variant’s position. Parquet’s columnar storage ensures we only read the needed columns (e.g. allele frequency column) which is efficient.
+
+        Lightweight Databases: For some lookup types, a SQLite database might be used (for example, a SQLite DB with ClinGen gene-level data or a mapping of OncoKB evidence by variant). However, introducing a full SQL database for read-only knowledge bases might be unnecessary overhead. Simpler key-value stores or in-memory dicts could suffice for moderate-sized lists (e.g. a set of known cancer genes loaded into memory at startup).
+
+        Local API Services: Alternatively, for certain complex annotations (like transcript reference data), running a local service or using existing ones can help. One example is Genome Nexus – an open service that does variant-to-protein change annotation and pulls OncoKB, etc. But since we emphasize minimal dependencies, we likely avoid running additional microservices. Instead, we bundle data and access it directly.
+
+    Many knowledge bases cluster around certain categories – our storage strategy can take advantage of that. For instance, dbNSFP aggregates dozens of predictive algorithms into one file
+    sigven.github.io
+    , so by loading one resource we cover many “knowledge bases” at once. Likewise, Cancer Genome Interpreter (CGI) and CIViC databases both provide lists of clinically relevant variants
+    sigven.github.io
+    ; these can be stored as JSON or TSV and parsed for matches. By clustering data (and possibly merging some sources if appropriate), we reduce the number of separate lookups. The PCGR pipeline demonstrates this by integrating a broad set of resources in its data bundle and querying them together
+    sigven.github.io
+    sigven.github.io
+    . Our platform will do similarly, ensuring that even though 47 knowledge bases are integrated, they are accessed through a manageable number of local files or queries, not 47 distinct network calls.
+
+    Interpretation Database: The system will maintain a PostgreSQL database (in cloud deployment; possibly SQLite for local testing) to store results and support the “clinical variant interpretation databasing” function. Each time variants are processed, their key results are saved:
+
+        Variant Reference: (Genome build, coordinates, gene, transcript, etc.)
+
+        Annotations: Important fields like HGVS nomenclature, ClinVar ID, etc., could be stored if needed for querying.
+
+        Classification Results: The final ACMG classification, oncogenicity status, actionability tier, and the date of interpretation.
+
+        Interpretive Text: The generated narrative or report snippets can be stored, along with references to which evidence was used.
+
+        User Edits/Overrides: If the platform allows users to manually adjust classifications or add notes, those should be stored here as well (with versioning or audit trail if needed for compliance).
+
+    Storing this information serves multiple purposes: it enables re-use of past interpretations (if the same variant is seen again, the system can retrieve the prior interpretation for consistency), and it allows querying the database for variants with certain properties (like all pathogenic variants in a gene, etc.). It’s essentially an internal knowledge base of interpreted variants, akin to a lab’s variant knowledgebase or a mini-ClinVar. With PostgreSQL, we get robust querying and the ability to enforce data integrity. As volume grows (if many samples are processed over time), PostgreSQL can scale and be secured for HIPAA compliance (encryption at rest, role-based access, etc.).
+
+    Minimizing complexity: We avoid overly complex storage solutions or multiple databases. A single relational database for interpretations is sufficient. Knowledge bases remain as flat files or simple structures rather than, say, needing a cluster of MongoDB/Elasticsearch servers. This keeps the stack lean and easier to maintain.
+
+API and User Interface Layer
+
+Responsibility: Provide a user-facing interface (both programmatic API and a web UI) to run analyses and view results. This layer orchestrates the modules above in response to user actions and ensures the system is usable as a local app and deployable as a cloud service.
+
+    FastAPI Web Service: We will build the backend with FastAPI, a modern, lightweight Python web framework. FastAPI allows easy creation of RESTful endpoints and includes Pydantic for data validation. Key endpoints include:
+
+        POST /interpretation – Accepts an input (VCF file upload or JSON of variants) and triggers the pipeline. This will call the intake module, then annotation, then rule engine, and return the results. Because variant count is small (~20), this can be handled synchronously (within a few seconds). The response will be a structured JSON with all variant interpretations, and possibly an HTML report.
+
+        GET /variant/{id} – Retrieve stored interpretation for a specific variant (or list of variants) from the database. This supports the databasing function, allowing users to query past results.
+
+        Endpoints for reference data or metadata as needed (e.g. GET /knowledgebases to list sources and versions, or GET /rulesets to list which guidelines are implemented).
+        FastAPI also provides an interactive API docs (Swagger UI) out of the box, which is useful for both testing and eventually allowing integration with other systems via API.
+
+    Web User Interface: For the initial local app, a simple web UI can be served by the FastAPI backend (using Jinja2 templates for server-side rendering, or a minimal single-page app). The UI should include:
+
+        An upload form for VCF files (or text box for variant input) to submit to the /interpretation endpoint.
+
+        A results page that displays the returned interpretations. This can show a table of variants with key annotations and classifications, and expand to show the full interpretive text and evidence per variant.
+
+        Options to download results (e.g. as a JSON or PDF report).
+
+        Possibly an interface to query the stored database (e.g. search for a variant or gene to see if it was observed before).
+
+    To keep dependencies low, we can implement the front-end with basic HTML/JavaScript (using a lightweight library or none at all). For example, use pure JavaScript or a minimal framework like Alpine.js to call the API and render results dynamically. Alternatively, since FastAPI can easily serve Jinja templates, we might generate the results page on the server side for simplicity. As the platform grows, a more sophisticated front-end (React/Vue) could be introduced, but the initial goal is functionality over form – ensure all features work locally without a complex UI stack.
+
+    Batch Processing & Concurrency: The API layer can manage multiple requests and scale out in the cloud. For local single-user use, concurrency isn’t a big issue (the user will upload one VCF at a time). In a cloud scenario with potentially multiple users or larger requests, we could deploy the app with a production server (Uvicorn/Gunicorn) and even separate background workers for long-running tasks. Since our target is ~20 variants which is small, the entire pipeline might finish in a couple of seconds. But if needed, FastAPI can integrate with task queues (like Celery or Redis RQ) to offload heavy jobs and return results via polling or WebSocket when ready. This ensures the web service remains responsive even under load.
+
+    Security & HIPAA Considerations: The architecture anticipates scaling to a secure, HIPAA-compliant environment. FastAPI supports OAuth2 or API key auth for securing endpoints. In a clinical deployment, user authentication and role-based access can be added to restrict who can upload data or view results. All data in transit will be encrypted (HTTPS), and if deployed on cloud, we will use HIPAA-compliant services (e.g. AWS with proper configurations). The modular design also means if one wanted to deploy the variant interpretation engine inside a hospital network (for PHI security) and a UI in the cloud, it’s feasible by exposing only the API and keeping the data storage in a secure network. Containerization (with Docker) will further aid deployment consistency across local and cloud.
+
+Overall, the API/UI layer ties everything together and presents the complex analysis in an accessible form. By using FastAPI and keeping the UI light, we minimize bloat and focus on the core functionality. This approach aligns with modern frameworks and ensures the system is both user-friendly and developer-friendly.
+Knowledge Base Clusters & Maintenance Strategy
+
+Integrating 47 knowledge bases is challenging, but many can be grouped for efficient handling. Here we highlight how different KBs cluster and how to maintain them:
+
+    Ensembl VEP Plugins Cluster: A significant number of annotations can be fetched via VEP + plugins. This includes variant effect, population frequencies (gnomAD, 1000G), dbSNP IDs, and functional predictions (dbNSFP covers dozens of algorithms)
+    sigven.github.io
+    . By configuring VEP with the available offline data for these, a single VEP run yields a plethora of info, covering perhaps 20+ of the “knowledge bases” in one go. We will maintain those data files (e.g. the VEP cache, FASTA, and plugin data files like gnomAD frequencies) locally and update them with each new release (as PCGR does in its bundle updates
+    sigven.github.io
+    ).
+
+    Clinical Variant Databases: Sources like ClinVar, COSMIC, CIViC, CGI, and OncoKB fall here. They often have overlapping content about clinical significance. We cluster them as:
+
+        Germline clinical: ClinVar (public, broad), HGMD (if available, though it’s commercial). We primarily use ClinVar as it’s open
+        sigven.github.io
+        .
+
+        Somatic clinical: OncoKB, CIViC, CGI, My Cancer Genome, JAX-CKB, etc. Rather than treat all as separate, we can unify their info. For example, CIViC and CGI both provide evidence of variant significance in cancer
+        sigven.github.io
+        . We could combine these into one internal “knowledge store” for somatic evidence. If multiple sources annotate the same variant’s significance, we record all but ultimately use them in concert to decide tiers. OncoKB provides a structured tier system; CIViC/CGI provide qualitative evidence. Our rule engine can merge input from all: e.g. if any source says “Level 1 therapeutic”, we treat it accordingly.
+        Maintenance: many of these have periodic releases or APIs. We will write update scripts for each to fetch new data (for example, CIViC has a GraphQL API and also downloadable nightly TSVs, ClinVar releases monthly VCFs). A small cron or manual trigger can update the local files, and we version them to know which version was used in each interpretation (for audit purposes).
+
+    Gene Knowledge: This includes databases of gene-level properties: Cancer Gene Census (which genes are oncogenes/tumor suppressors), ClinGen Dosage Sensitivity (for haploinsufficiency/triplosensitivity), ClinGen Gene Validity (genes proven to cause certain diseases), and OncoKB’s list of Cancer genes with oncogenic mutations. These are used to judge whether a variant’s gene is actionable or has disease significance. We cluster these by use-case:
+
+        A gene-properties cache that, for each gene, stores flags like: is it a tumor suppressor? oncogene? dosage sensitive? cancer predisposition gene? etc. This cache can be a JSON or database table compiled from sources like CGC, CancerMine
+        sigven.github.io
+        , ClinGen, etc. Then rule engines consult this rather than each source individually.
+        Maintenance: These lists update slowly. We update them perhaps a few times a year. A simple Python script can pull the latest CGC list (COSMIC releases) and ClinGen curator updates.
+
+    Other Functional Data: E.g. protein domains (UniProt/Pfam), conservation scores, structural data. These are used for interpretation (e.g. “variant falls in a critical domain”). We can store domain coordinates locally (e.g. a JSON mapping protein domains per gene from UniProt
+    sigven.github.io
+    ) and simply check overlap. Conservation scores can be precomputed in annotation. Maintenance here is minimal since these data change rarely.
+
+Performance considerations: By keeping data local and structured for quick access (using indexes, precomputed maps, and avoiding heavy remote calls), the system will achieve low latency. Processing ~20 variants should take only a few seconds end-to-end on a modern CPU. Annotation with VEP is usually the slowest step; however, VEP processing 20 variants is fast (especially if using cache and not loading huge datasets each time). We can further optimize by pre-loading certain data into memory when the server starts (for instance, load ClinVar into a dictionary keyed by variant for quick lookup, since 20 variants out of ~1M ClinVar entries is a tiny fraction – a bloom filter or binning could optimize this). Parallelization is another lever: if multiple variants need API calls (e.g. to OncoKB), perform them concurrently using Python async or thread pools. But ideally, avoid runtime API queries by using local data where possible.
+
+In summary, our strategy is to fetch broadly, cache locally, and query efficiently. Each knowledge base is either integrated into a unified pipeline step (like VEP) or accessed via a lightweight local lookup. This ensures the platform is not only fast and reliable offline, but also that adding new knowledge bases in the future is straightforward (just drop in a new file and write a lookup function or VEP plugin).
+Minimal and Scalable Deployment
+
+A key architectural principle is to minimize complexity and avoid bloated stacks. This means:
+
+    Use as few distinct frameworks as necessary: we stick to Python and well-established libraries (FastAPI, SQLAlchemy for DB, etc.), avoiding introducing languages like R or heavy enterprise frameworks. The entire pipeline can be packaged in one Docker container for easy deployment. This container includes the Python environment and any needed data files (for local KBs).
+
+    Avoid microservices unless scaling dictates: Initially, all modules run within the same FastAPI application process. This is simpler to develop and deploy for a local app. As usage grows, we can scale by running multiple instances behind a load balancer or by splitting off resource-heavy tasks. For example, the annotation module (with VEP) could be a separate service if needed, but only if we find that doing so improves performance or manageability. Early on, a monolithic design (modular in code, but unified in deployment) avoids the overhead of managing multiple services.
+
+    Reference Implementations: We take inspiration from existing tools but aim for a leaner integration:
+
+        PCGR demonstrates the effectiveness of using VEP and a data bundle to achieve comprehensive annotation and classification
+        sigven.github.io
+        sigven.github.io
+        . However, PCGR uses R for report generation; we will avoid that by doing everything in Python.
+
+        PeCanPIE provides a full pipeline with an interface, automated classification (Medal Ceremony), and expert review functionality
+        stjude.org
+        . Our design echoes this with automated scoring and the ability to incorporate user input (the interpretation DB can store manual overrides).
+
+        Emedgene (Illumina) and Fabric Genomics platforms use AI and predefined rule logic for variant interpretation. They often integrate numerous data sources and apply ACMG rules, similar to what we propose. While those are proprietary, our system achieves similar breadth with open tools.
+
+        Hartwig’s WiGiTS/OncoAnalyser pipeline is a comprehensive WGS analysis solution using Nextflow and multiple tools. It includes variant calling, annotation, and interpretation. We borrow the idea of a scalable pipeline, but implement it in a simpler Python service without requiring a workflow engine.
+
+        By examining these, we ensure our architecture does not miss major components, but we intentionally trim any excess. For example, instead of an entire pipeline framework, we rely on function calls and a web API. Instead of multiple databases or servers, we keep one central application that is easier to maintain.
+
+    Cloud readiness: When deploying to the cloud, we will enable horizontal scaling (multiple app instances if needed for throughput) and use managed services for the database (e.g. AWS RDS for PostgreSQL). The app is stateless aside from the DB, which simplifies scaling – all instances connect to the same DB and read the same knowledge base files (which can be on a shared file system or object storage). Caching layers (like Redis) could be introduced if API usage of external services becomes heavy or if we need to store session data, but likely unnecessary at first.
+
+Finally, the system is built to be extensible. New task types or knowledge bases can be added by introducing new modules or expanding configurations, thanks to the modular design. The separation between data ingestion, logic rules, and presentation means each can evolve without breaking the others. This modular architecture, combined with the chosen tools, will allow the platform to start as a local app and seamlessly grow into a secure, scalable cloud application.
+Task-to-Knowledge Base Mapping
+
+To clarify how each core task is accomplished, the table below maps the six core tasks to the relevant knowledge bases and the software/logic modules that handle them:
+Core Task   Key Knowledge Bases & Data  Tools/Logic Components
+1. Variant Annotation <br/>(extract functional, frequency, and known info)  – Ensembl VEP (GENCODE transcripts) for gene & consequence
+sigven.github.io
+<br/>– gnomAD, 1000 Genomes for population allele frequencies
+sigven.github.io
+<br/>– dbNSFP (SIFT, PolyPhen, CADD, etc. predictions)
+sigven.github.io
+<br/>– ClinVar for clinical significance
+sigven.github.io
+<br/>– COSMIC/Cancer Hotspots for somatic recurrences
+sigven.github.io
+<br/>– UniProt/Pfam for protein domains
+sigven.github.io
+<br/>– Other flatfile DBs (Conservation scores, dbSNP IDs, etc.)    – Ensembl VEP engine with plugins (run via CLI or API)
+sigven.github.io
+<br/>– Python parser for VEP output to internal data model<br/>– Alt: pysam/bedtools for any custom overlap queries (if needed for certain flatfiles)
+2. ACMG/AMP Rule Application <br/>(germline pathogenicity classification)   – Annotations from #1 (especially: gnomAD freq, ClinVar, predictions) <br/>– ClinGen gene databases (dosage sensitivity, disease validity) for gene impact <br/>– HGMD (if available) or internal curated pathogenic variant list <br/>– Case-specific data (e.g. de novo occurrence, segregation, from input)  – ACMG logic module (Python) applying criteria thresholds
+auto-acmg.readthedocs.io
+<br/>– Possibly use AutoACMG or similar library for criteria evaluation
+auto-acmg.readthedocs.io
+<br/>– Custom code for certain criteria (e.g. de novo, segregation require pedigree data if provided) <br/>– Combines criteria results into final ACMG classification (Pathogenic/Likely/etc.)
+3. OncoKB Rule Application <br/>(clinical actionability for somatic)    – OncoKB knowledge base (evidence levels for variants)
+oncokb.org
+<br/>– Tumor type mappings (to know on-label vs off-label uses) <br/>– NCCN/FDA guidelines (implicitly through OncoKB levels or separate lookup for Tier I biomarkers)  – OncoKB integration via REST API or local data file
+faq.oncokb.org
+<br/>– Python client or HTTP calls to fetch variant level (requires gene, variant amino acid, cancer type) <br/>– Logic to interpret OncoKB level (e.g. Level 1 ⇒ Tier IA actionability) <br/>– Data structures to store drug associations from OncoKB for report text
+4. CGC/VICC Rule Application <br/>(somatic oncogenicity classification) – ClinGen/CGC/VICC oncogenicity criteria (ruleset definitions)
+sigven.github.io
+<br/>– Cancer Gene Census list for known oncogenes/TSGs <br/>– Cancer Hotspots/TCGA frequency data (to see if variant is recurrent)
+sigven.github.io
+<br/>– CIViC/CGI evidence of oncogenicity (curated literature)
+sigven.github.io
+<br/>– Annotations from #1 (variant type, effect on protein)    – Oncogenicity classification module (Python) implementing rules (could adapt logic from OncoVI or similar) <br/>– Uses inputs: gene is oncogene/TSG (from CGC), variant is hotspot (from data), etc., to assign “Oncogenic/Likely Oncogenic/VUS…” <br/>– Possibly use a scoring system per guideline (similar to ACMG points) to automate classification
+5. Rule/Tier Quantification <br/>(combine criteria to final tier/score) – Outputs from modules 2, 3, 4 (criteria met, evidence levels, etc.) <br/>– AMP/ASCO/CAP guideline definitions for tiering (to map evidence to Tier I-IV)
+sigven.github.io
+    – Aggregation logic that compiles evidence: e.g. count ACMG criteria strengths to decide pathogenic vs likely, or aggregate somatic evidence to assign AMP Tier <br/>– Simple Python functions or decision trees implementing the formal combination rules (if 1 strong + ≥2 moderate => Likely Pathogenic, etc.) <br/>– Ensures consistency and attaches final labels to variant (this is the authoritative classification output)
+6. Clinical Variant Interpretation Database <br/>(storing results and enabling queries) – Internal database (no external KB; this is our storage) <br/>– May include references to external IDs (ClinVar IDs, OncoKB IDs for cross-reference)   – PostgreSQL relational DB (cloud) or SQLite (local) for persistence <br/>– Schemas: Variant table, Interpretation table, Evidence table (to normalize data) <br/>– SQLAlchemy or similar ORM in Python to interface with the DB <br/>– Exposed via API (endpoints to query past interpretations) and used to auto-populate known variant info on new runs
+
+Table: Mapping of core tasks to knowledge bases and logic components. Each task draws on specific data sources and is handled by dedicated modules in the system.
+Conclusion
+
+This modular architecture balances comprehensiveness and simplicity. By structuring the platform into clear components (intake, annotation, rule engines, text generation, storage, and API/UI), we ensure each part can be developed and tested in isolation, then seamlessly integrated. The choice of a Python-centric stack with FastAPI, VEP, and PostgreSQL provides a proven foundation that is both locally runnable and cloud-ready. We leverage existing knowledge bases and tools to the fullest – for example, using VEP with plugins to cover numerous annotations in one go
+sigven.github.io
+sigven.github.io
+, and adopting community standards for variant classification
+sigven.github.io
+auto-acmg.readthedocs.io
+– rather than reinventing the wheel. At the same time, we heed the lessons from tools like PCGR, PeCanPIE, and others to avoid their complexities (no multi-language dependence, no overly elaborate pipeline frameworks) while adopting their successful strategies (comprehensive data bundling, automated rule application, user-friendly output).
+
+In practice, this design will allow a user to upload a VCF of ~20 variants and receive, within seconds, a complete report: each variant annotated with rich data, classified by ACMG or oncogenicity guidelines, given an actionability tier if relevant, and accompanied by interpretive text explaining the findings. The platform’s local database will grow with each interpretation, enhancing its utility over time as a knowledge repository. When the time comes to deploy in a clinical setting, the architecture can be scaled and secured without fundamental changes – demonstrating the robustness of the modular design. By emphasizing a lean, well-integrated stack, we aim for a maintainable, high-performance, and extensible solution for clinical variant interpretation.
+
+The end result is a platform that automates the heavy lifting of variant analysis across dozens of knowledge sources, yet remains flexible for expert review and future expansion – fulfilling the needs of both a local research tool and an enterprise-grade clinical system
+
+
+
+=================================
+
+Below is a **“walk-verify-walk” roadmap** that keeps scope razor-thin at first, proves each layer works, and positions us to layer on the richer somatic logic later (we’ll bolt germline on in the next cycle).  Each milestone ends with a concrete success check so you never merge code that hasn’t already run end-to-end.
+
+| Phase                              | Deliverable (very small slice)                                                                                                                                                              | How to Verify (automated + manual)                                                                                          | Tooling & Tips                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **0. Repo & Environment Skeleton** | • Git repo with Poetry/`pyproject.toml` (Python ≥ 3.11) <br>• `src/` folder w/ empty modules: `intake`, `annotate`, `rules`, `ui`                                                           | • `poetry run pytest -q` returns 0 tests, 0 failures <br>• `poetry run myapp --help` prints CLI stub                        | *Why first?* Locks versions & structure so every next step is reproducible.                |
+| **1. Intake MVP**                  | • `intake.parse_vcf()` that reads a small 3-variant test VCF → list of `Variant` dataclasses (`chrom`, `pos`, `ref`, `alt`) <br>• Minimal CLI: `myapp parse tests/data/mini.vcf` dumps JSON | • Unit test: confirm list length = 3, fields correct <br>• CLI run prints expected JSON                                     | Use `cyvcf2`; no DB, no web yet.                                                           |
+| **2. “Hello-World” Annotation**    | • Dockerfile that installs VEP + cache (GRCh38 minimal) <br>• `annotate.run_vep()` shell-executes VEP on provided variants, requests **only**: gene symbol + consequence                    | • Golden JSON fixture checked into `tests/data/vep_mini.json` <br>• Integration test: parse + annotate → compare to fixture | Pin exact VEP/Cache versions in Docker tag so CI always matches.                           |
+| **3. One Somatic KB Overlay**      | • Add **Cancer Hotspots v2 BED/TSV** locally (`data/hotspots.tsv.gz`) <br>• `annotate.add_hotspot_flag()` sets `variant.is_hotspot` = True/False                                            | • Synthetic VCF containing a known BRAF V600E → expect `is_hotspot=True` <br>• Unit test on that record                     | Keep lookup logic pure-Python (load TSV at startup into dict keyed by “gene\:aa”).         |
+| **4. Micro-Rule Engine v0**        | • `rules.oncogenicity()` returns enum {ONCOGENIC, VUS} <br>• Logic: `ONCOGENIC` iff `is_hotspot` OR (future) OncoKB level present                                                           | • Integration test: run end-to-end on BRAF V600E VCF → classification = ONCOGENIC                                           | Rule code is a single function with exhaustive unit tests; adds confidence quickly.        |
+| **5. FastAPI Thin Wrapper**        | • `/interpret` POST endpoint accepts VCF upload, streams through phases 1-4, returns JSON list of variants + classification                                                                 | • `pytest --asyncio` calls endpoint with test VCF and asserts HTTP 200 & JSON schema                                        | FastAPI auto-docs lets you manually try the endpoint in browser; that’s a live smoke test. |
+| **6. Continuous Integration**      | • GitHub Actions workflow: poetry install, run unit + integration tests, build Docker image                                                                                                 | • PR blocked unless CI green                                                                                                | Gives you “won’t break master” guarantee from here on.                                     |
+
+### Why this order?
+
+1. **Parse** a VCF → proves file I/O and datamodel.
+2. **Annotate** a trivial field → proves external tool piping (VEP) inside Docker.
+3. Add **one KB lookup** → sets pattern for dozens later.
+4. Drop in **a microscopic rule** → shows the pipeline can transform annotations into meaning.
+5. **Expose an API** → confirms the whole vertical slice usable by another program/UI.
+6. **CI** → prevents regressions as we iterate.
+
+> **Definition of “done” for each milestone:** the demo VCF goes from upload to JSON output without manual tweaking, and the corresponding pytest passes in CI.
+
+Once Phase 5 is rock-solid, the next incremental additions are straightforward:
+
+* **Phase 7:** Add OncoKB local JSON & refactor `rules.oncogenicity()` to include evidence levels.
+* **Phase 8:** Add canned-text generator (Jinja2) for the returned JSON.
+* **Phase 9:** Introduce PostgreSQL for persistence (store variant hash + interpretation).
+* …and so on, always one vertical slice at a time.
+
+This approach keeps the app “usable” after every PR and lets you inspect real outputs before adding complexity.

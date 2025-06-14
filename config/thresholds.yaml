@@ -1,0 +1,3 @@
+tmb_high_cutoff: 10
+msi_positive_values: ["MSI-H", "MSI-High"]
+hrd_high_cutoff: 42
