@@ -38,7 +38,7 @@ class AnnotationEngineCLI:
         
         parser = argparse.ArgumentParser(
             prog='annotation-engine',
-            description='Clinical Variant Annotation Engine - Validate and annotate variants following AMP/ACMG, CGC/VICC, and OncoKB guidelines',
+            description='Clinical Variant Annotation Engine - Validate and annotate somatic variants following AMP ACMG 2017, CGC/VICC 2022, and OncoKB guidelines',
             epilog='Example: annotation-engine --input sample.vcf --case-uid CASE_001 --cancer-type lung_adenocarcinoma',
             formatter_class=argparse.RawDescriptionHelpFormatter
         )

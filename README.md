@@ -44,7 +44,7 @@ Our annotation engine integrates **42 curated knowledge bases** covering all maj
 
 ### Clinical Classification Frameworks Supported
 
-1. **ACMG/AMP Guidelines** (2015) - Germline pathogenicity assessment
+1. **AMP/ACMG Guidelines** (2017) - Somatic variant interpretation and classification
 2. **ClinGen/CGC/VICC Guidelines** (2022) - Somatic oncogenicity assessment  
 3. **OncoKB Therapeutic Guidelines** - Clinical actionability tiers
 4. **Canned Text Types** - Nine standardized report components
