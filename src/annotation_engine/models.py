@@ -170,6 +170,13 @@ class VariantAnnotation(BaseModel):
     
     # Therapeutic implications
     therapeutic_implications: List[TherapeuticImplication] = Field(default_factory=list)
+    
+    # VEP plugin data (raw data for evidence aggregation)
+    plugin_data: Dict[str, Any] = Field(default_factory=dict, description="Raw VEP plugin outputs")
+    
+    # Annotation metadata
+    vep_version: Optional[str] = None
+    annotation_source: str = "VEP"
 
 
 class VICCScoring(BaseModel):

@@ -782,48 +782,245 @@ class EvidenceAggregator:
         return evidence
     
     def _get_functional_prediction_evidence(self, variant: VariantAnnotation, analysis_type: AnalysisType) -> List[Evidence]:
-        """Generate functional prediction evidence"""
+        """Generate functional prediction evidence from VEP plugin data"""
         evidence = []
         
-        # Aggregate computational predictions
-        damaging_count = 0
-        benign_count = 0
-        total_predictions = 0
-        
-        for pred in variant.functional_predictions:
-            total_predictions += 1
+        if not variant.plugin_data:
+            return evidence
             
-            if pred.prediction:
-                if pred.prediction.lower() in ['damaging', 'deleterious', 'pathogenic']:
-                    damaging_count += 1
-                elif pred.prediction.lower() in ['benign', 'tolerated', 'neutral']:
-                    benign_count += 1
+        # Extract pathogenicity scores with evidence-based weights
+        pathogenicity_scores = variant.plugin_data.get("pathogenicity_scores", {})
+        splicing_scores = variant.plugin_data.get("splicing_scores", {})
+        conservation_data = variant.plugin_data.get("conservation_data", {})
         
-        if total_predictions >= 2:  # Require at least 2 predictions
-            # VICC OP1: Computational evidence supports damaging effect
-            if damaging_count >= (total_predictions * 0.6):  # 60% consensus
-                evidence.append(Evidence(
-                    code="OP1",
-                    score=1,
-                    guideline="VICC_2022",
-                    source_kb="Computational_Predictions",
-                    description=f"Computational evidence supports damaging effect ({damaging_count}/{total_predictions} tools)",
-                    data={"damaging_count": damaging_count, "total_predictions": total_predictions},
-                    confidence=0.7
-                ))
+        # Process high-evidence pathogenicity predictors
+        evidence.extend(self._process_high_evidence_predictors(pathogenicity_scores, analysis_type))
+        
+        # Process splicing predictions
+        evidence.extend(self._process_splicing_predictions(splicing_scores, analysis_type))
+        
+        # Process conservation evidence
+        evidence.extend(self._process_conservation_evidence(conservation_data, analysis_type))
+        
+        # Generate consensus evidence if we have multiple predictors
+        evidence.extend(self._generate_consensus_evidence(pathogenicity_scores, analysis_type))
+        
+        return evidence
+    
+    def _process_high_evidence_predictors(self, pathogenicity_scores: Dict[str, Any], analysis_type: AnalysisType) -> List[Evidence]:
+        """Process high-evidence pathogenicity predictors (AlphaMissense, REVEL, EVE, etc.)"""
+        evidence = []
+        
+        # High evidence predictors with specific thresholds
+        high_evidence_predictors = {
+            "alphamissense": {"pathogenic_threshold": 0.564, "confidence": 0.9},
+            "revel": {"pathogenic_threshold": 0.5, "confidence": 0.85},
+            "eve": {"pathogenic_threshold": 0.5, "confidence": 0.85},
+            "varity": {"pathogenic_threshold": 0.5, "confidence": 0.8}
+        }
+        
+        for predictor, config in high_evidence_predictors.items():
+            if predictor in pathogenicity_scores:
+                score_data = pathogenicity_scores[predictor]
+                score = score_data.get("score")
+                
+                if score is not None:
+                    try:
+                        score_val = float(score)
+                        
+                        if score_val >= config["pathogenic_threshold"]:
+                            evidence.append(Evidence(
+                                code="OP1_HIGH",
+                                score=2,  # Higher weight for high-evidence predictors
+                                guideline="VICC_2022_ENHANCED",
+                                source_kb=f"{predictor.upper()}_VEP",
+                                description=f"{predictor.upper()} predicts pathogenic effect (score: {score_val:.3f})",
+                                data={"score": score_val, "threshold": config["pathogenic_threshold"]},
+                                confidence=config["confidence"]
+                            ))
+                        elif score_val <= (1 - config["pathogenic_threshold"]):  # Conservative benign threshold
+                            evidence.append(Evidence(
+                                code="SBP1_HIGH", 
+                                score=-2,
+                                guideline="VICC_2022_ENHANCED",
+                                source_kb=f"{predictor.upper()}_VEP",
+                                description=f"{predictor.upper()} predicts benign effect (score: {score_val:.3f})",
+                                data={"score": score_val, "threshold": config["pathogenic_threshold"]},
+                                confidence=config["confidence"]
+                            ))
+                    except (ValueError, TypeError):
+                        continue
+                        
+        return evidence
+    
+    def _process_splicing_predictions(self, splicing_scores: Dict[str, Any], analysis_type: AnalysisType) -> List[Evidence]:
+        """Process splicing predictions (SpliceAI, dbscSNV)"""
+        evidence = []
+        
+        # SpliceAI processing (high evidence)
+        if "spliceai" in splicing_scores:
+            spliceai_data = splicing_scores["spliceai"]
             
-            # VICC SBP1: Computational evidence suggests benign
-            elif benign_count >= (total_predictions * 0.6):  # 60% consensus
-                evidence.append(Evidence(
-                    code="SBP1",
-                    score=-1,
-                    guideline="VICC_2022",
-                    source_kb="Computational_Predictions",
-                    description=f"Computational evidence suggests benign effect ({benign_count}/{total_predictions} tools)",
-                    data={"benign_count": benign_count, "total_predictions": total_predictions},
-                    confidence=0.7
-                ))
+            # Find maximum delta score
+            delta_scores = []
+            for key in ["ds_ag", "ds_al", "ds_dg", "ds_dl"]:
+                if key in spliceai_data:
+                    try:
+                        delta_scores.append(float(spliceai_data[key]))
+                    except (ValueError, TypeError):
+                        continue
+                        
+            if delta_scores:
+                max_delta = max(delta_scores)
+                
+                if max_delta >= 0.8:  # High confidence splicing disruption
+                    evidence.append(Evidence(
+                        code="OP2_SPLICE",
+                        score=2,
+                        guideline="VICC_2022_ENHANCED", 
+                        source_kb="SpliceAI_VEP",
+                        description=f"SpliceAI predicts high splicing disruption (max Δ: {max_delta:.3f})",
+                        data={"max_delta_score": max_delta, "all_scores": spliceai_data},
+                        confidence=0.9
+                    ))
+                elif max_delta >= 0.2:  # Moderate splicing impact
+                    evidence.append(Evidence(
+                        code="OP2_SPLICE",
+                        score=1,
+                        guideline="VICC_2022_ENHANCED",
+                        source_kb="SpliceAI_VEP", 
+                        description=f"SpliceAI predicts moderate splicing disruption (max Δ: {max_delta:.3f})",
+                        data={"max_delta_score": max_delta, "all_scores": spliceai_data},
+                        confidence=0.75
+                    ))
+                    
+        # dbscSNV processing (moderate evidence)
+        if "dbscsnv" in splicing_scores:
+            dbscsnv_data = splicing_scores["dbscsnv"]
+            ada_score = dbscsnv_data.get("ada_score")
+            rf_score = dbscsnv_data.get("rf_score")
+            
+            if ada_score is not None and rf_score is not None:
+                try:
+                    ada_val = float(ada_score)
+                    rf_val = float(rf_score)
+                    
+                    if ada_val >= 0.6 and rf_val >= 0.6:  # Both models agree
+                        evidence.append(Evidence(
+                            code="OP2_SPLICE",
+                            score=1,
+                            guideline="VICC_2022_ENHANCED",
+                            source_kb="dbscSNV_VEP",
+                            description=f"dbscSNV predicts splicing disruption (ADA: {ada_val:.3f}, RF: {rf_val:.3f})",
+                            data={"ada_score": ada_val, "rf_score": rf_val},
+                            confidence=0.7
+                        ))
+                except (ValueError, TypeError):
+                    pass
+                    
+        return evidence
+    
+    def _process_conservation_evidence(self, conservation_data: Dict[str, Any], analysis_type: AnalysisType) -> List[Evidence]:
+        """Process conservation and constraint evidence"""
+        evidence = []
         
+        # GERP conservation
+        gerp_score = conservation_data.get("gerp")
+        if gerp_score is not None:
+            try:
+                gerp_val = float(gerp_score)
+                if gerp_val >= 4.0:  # Highly conserved
+                    evidence.append(Evidence(
+                        code="OP3_CONSERVATION",
+                        score=1,
+                        guideline="VICC_2022_ENHANCED",
+                        source_kb="GERP_VEP",
+                        description=f"Highly conserved position (GERP: {gerp_val:.2f})",
+                        data={"gerp_score": gerp_val},
+                        confidence=0.7
+                    ))
+            except (ValueError, TypeError):
+                pass
+                
+        # LoFtool gene constraint
+        loftool_score = conservation_data.get("loftool")
+        if loftool_score is not None:
+            try:
+                loftool_val = float(loftool_score)
+                if loftool_val <= 0.1:  # Loss-of-function intolerant gene
+                    evidence.append(Evidence(
+                        code="OP4_GENE_CONSTRAINT",
+                        score=1,
+                        guideline="VICC_2022_ENHANCED",
+                        source_kb="LoFtool_VEP",
+                        description=f"Gene is loss-of-function intolerant (LoFtool: {loftool_val:.3f})",
+                        data={"loftool_score": loftool_val},
+                        confidence=0.8
+                    ))
+            except (ValueError, TypeError):
+                pass
+                
+        return evidence
+    
+    def _generate_consensus_evidence(self, pathogenicity_scores: Dict[str, Any], analysis_type: AnalysisType) -> List[Evidence]:
+        """Generate consensus evidence from multiple predictors"""
+        evidence = []
+        
+        # Count pathogenic vs benign predictions
+        pathogenic_predictors = []
+        benign_predictors = []
+        
+        predictor_thresholds = {
+            "alphamissense": 0.564,
+            "revel": 0.5, 
+            "primateai": 0.8,
+            "eve": 0.5,
+            "varity": 0.5,
+            "bayesdel": 0.5,
+            "clinpred": 0.5
+        }
+        
+        for predictor, threshold in predictor_thresholds.items():
+            if predictor in pathogenicity_scores:
+                score_data = pathogenicity_scores[predictor]
+                score = score_data.get("score")
+                
+                if score is not None:
+                    try:
+                        score_val = float(score)
+                        if score_val >= threshold:
+                            pathogenic_predictors.append(predictor)
+                        elif score_val <= (1 - threshold):
+                            benign_predictors.append(predictor)
+                    except (ValueError, TypeError):
+                        continue
+                        
+        total_predictors = len(pathogenic_predictors) + len(benign_predictors)
+        
+        if total_predictors >= 3:  # Require at least 3 predictors for consensus
+            pathogenic_ratio = len(pathogenic_predictors) / total_predictors
+            
+            if pathogenic_ratio >= 0.75:  # Strong consensus pathogenic
+                evidence.append(Evidence(
+                    code="OP1_CONSENSUS",
+                    score=2,
+                    guideline="VICC_2022_ENHANCED",
+                    source_kb="Consensus_Pathogenicity",
+                    description=f"Strong consensus for pathogenic effect ({len(pathogenic_predictors)}/{total_predictors} predictors)",
+                    data={"pathogenic_predictors": pathogenic_predictors, "total_predictors": total_predictors},
+                    confidence=0.85
+                ))
+            elif pathogenic_ratio <= 0.25:  # Strong consensus benign
+                evidence.append(Evidence(
+                    code="SBP1_CONSENSUS",
+                    score=-2,
+                    guideline="VICC_2022_ENHANCED", 
+                    source_kb="Consensus_Pathogenicity",
+                    description=f"Strong consensus for benign effect ({len(benign_predictors)}/{total_predictors} predictors)",
+                    data={"benign_predictors": benign_predictors, "total_predictors": total_predictors},
+                    confidence=0.85
+                ))
+                
         return evidence
     
     def _get_clinical_evidence(self, variant: VariantAnnotation, cancer_type: str, analysis_type: AnalysisType) -> List[Evidence]:

@@ -151,13 +151,54 @@ class VEPRunner:
         self.config = config or VEPConfiguration()
         self.config.validate()
         
-        # VEP plugins for clinical annotation
+        # VEP plugins for clinical annotation (evidence-based selection)
+        # NOTE: Plugin selection rationale in ./docs/VEP_PLUGINS.md also guides 
+        # rule/tiering logic - high evidence plugins get higher weights in scoring
         self.default_plugins = [
-            "dbNSFP,{plugins_dir}/dbNSFP4.4a.gz,ALL",
-            "COSMIC,{plugins_dir}/CosmicCodingMuts.normal.vcf.gz",
-            "gnomADg,{plugins_dir}/gnomad.genomes.v3.1.2.sites.vcf.bgz",
+            # Core pathogenicity predictors
+            "dbNSFP,{plugins_dir}/dbNSFP5.1.gz,ALL",
+            "AlphaMissense,{plugins_dir}/AlphaMissense_hg38.tsv.gz",
+            "REVEL,{plugins_dir}/revel_all_chromosomes.tsv.gz",
+            "PrimateAI,{plugins_dir}/PrimateAI_scores_v0.2.tsv.gz",
+            "EVE,{plugins_dir}/eve_merged.vcf.gz",
+            "VARITY,{plugins_dir}/VARITY_R_LOO_v1.0.tsv.gz",
+            
+            # Additional pathogenicity tools
+            "BayesDel,{plugins_dir}/BayesDel_addAF_V1.2.tsv.gz",
+            "ClinPred,{plugins_dir}/clinpred_scores.tsv.gz", 
+            "FATHMM,{plugins_dir}/fathmm_scores.tsv.gz",
+            "FATHMM_MKL,{plugins_dir}/fathmm_mkl_scores.tsv.gz",
+            "PolyPhen_SIFT,{plugins_dir}/polyphen_sift.db",
+            
+            # Splicing predictors
+            "SpliceAI,{plugins_dir}/spliceai_scores.masked.snv.hg38.vcf.gz",
+            "dbscSNV,{plugins_dir}/dbscSNV1.1_GRCh38.txt.gz",
+            "SpliceRegion,{plugins_dir}/splice_region_annotations.gff.gz",
+            
+            # Population frequency and coverage
+            "gnomAD,{plugins_dir}/gnomad.genomes.v3.1.2.sites.vcf.bgz",
+            "gnomADc,{plugins_dir}/gnomad.exomes.coverage.summary.tsv.gz",
+            
+            # Clinical and phenotype data
             "ClinVar,{plugins_dir}/clinvar.vcf.gz,exact",
-            "CADD,{plugins_dir}/whole_genome_SNVs.tsv.gz",
+            "Phenotypes,{plugins_dir}/phenotype_annotations.gff.gz",
+            
+            # Conservation and constraint
+            "Conservation,{plugins_dir}/conservation_scores.wig.gz",
+            "LoFtool,{plugins_dir}/LoFtool_scores.txt",
+            
+            # Literature and experimental evidence
+            "AVADA,{plugins_dir}/avada_annotations.tsv.gz",
+            "MaveDB,{plugins_dir}/mavedb_scores.tsv.gz",
+            
+            # Structural variants and regulatory
+            "StructuralVariantOverlap,{plugins_dir}/structural_variants.vcf.gz",
+            "UTRAnnotator,{plugins_dir}/utr_annotations.gff.gz",
+            "Enformer,{plugins_dir}/enformer_predictions.tsv.gz",
+            
+            # Quality control and ACMG
+            "GeneBe,{plugins_dir}/genebe_acmg.tsv.gz",
+            "NMD,{plugins_dir}/nmd_predictions.tsv.gz",
         ]
     
     def annotate_vcf(self, 
@@ -465,6 +506,9 @@ class VEPRunner:
                             allele_frequency=float(freq)
                         ))
             
+            # Extract VEP plugin data for evidence aggregation
+            plugin_data = self._extract_plugin_data(canonical_consequence, vep_variant)
+            
             # Create VariantAnnotation object
             variant_annotation = VariantAnnotation(
                 chromosome=chromosome,
@@ -489,7 +533,10 @@ class VEPRunner:
                 
                 # VEP metadata
                 vep_version=vep_variant.get("assembly_name", ""),
-                annotation_source="VEP"
+                annotation_source="VEP",
+                
+                # Plugin data (raw data to be processed by evidence aggregator)
+                plugin_data=plugin_data
             )
             
             return variant_annotation
@@ -497,6 +544,239 @@ class VEPRunner:
         except Exception as e:
             logger.warning(f"Failed to create variant annotation from VEP data: {e}")
             return None
+    
+    def _extract_plugin_data(self, transcript_consequence: Optional[Dict[str, Any]], 
+                           vep_variant: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract plugin data from VEP output for evidence aggregation"""
+        
+        plugin_data = {}
+        
+        if not transcript_consequence:
+            return plugin_data
+            
+        # Core pathogenicity predictors
+        plugin_data.update(self._extract_pathogenicity_scores(transcript_consequence))
+        
+        # Splicing predictors  
+        plugin_data.update(self._extract_splicing_scores(transcript_consequence))
+        
+        # Population and coverage data
+        plugin_data.update(self._extract_population_data(transcript_consequence, vep_variant))
+        
+        # Clinical and phenotype data
+        plugin_data.update(self._extract_clinical_data(transcript_consequence))
+        
+        # Conservation and constraint
+        plugin_data.update(self._extract_conservation_data(transcript_consequence))
+        
+        # Literature and experimental evidence
+        plugin_data.update(self._extract_literature_data(transcript_consequence))
+        
+        # Structural and regulatory
+        plugin_data.update(self._extract_regulatory_data(transcript_consequence))
+        
+        # Quality control and ACMG
+        plugin_data.update(self._extract_qc_data(transcript_consequence))
+        
+        return plugin_data
+    
+    def _extract_pathogenicity_scores(self, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract pathogenicity prediction scores"""
+        scores = {}
+        
+        # AlphaMissense
+        if "alphamissense_score" in tc:
+            scores["alphamissense"] = {
+                "score": tc.get("alphamissense_score"),
+                "prediction": tc.get("alphamissense_prediction")
+            }
+        
+        # REVEL
+        if "revel_score" in tc:
+            scores["revel"] = {"score": tc.get("revel_score")}
+            
+        # PrimateAI  
+        if "primateai_score" in tc:
+            scores["primateai"] = {
+                "score": tc.get("primateai_score"),
+                "prediction": tc.get("primateai_pred")
+            }
+            
+        # EVE
+        if "eve_score" in tc:
+            scores["eve"] = {
+                "score": tc.get("eve_score"),
+                "class": tc.get("eve_class")
+            }
+            
+        # VARITY
+        if "varity_r" in tc:
+            scores["varity"] = {"score": tc.get("varity_r")}
+            
+        # BayesDel
+        if "bayesdel_adaf_score" in tc:
+            scores["bayesdel"] = {
+                "score": tc.get("bayesdel_adaf_score"),
+                "prediction": tc.get("bayesdel_adaf_pred")
+            }
+            
+        # ClinPred
+        if "clinpred_score" in tc:
+            scores["clinpred"] = {
+                "score": tc.get("clinpred_score"),
+                "prediction": tc.get("clinpred_pred")
+            }
+            
+        # FATHMM variants
+        if "fathmm_score" in tc:
+            scores["fathmm"] = {
+                "score": tc.get("fathmm_score"),
+                "prediction": tc.get("fathmm_pred")
+            }
+        if "fathmm_mkl_coding_score" in tc:
+            scores["fathmm_mkl"] = {
+                "score": tc.get("fathmm_mkl_coding_score"),
+                "prediction": tc.get("fathmm_mkl_coding_pred")
+            }
+            
+        # PolyPhen/SIFT (if not in dbNSFP)
+        if "polyphen_score" in tc:
+            scores["polyphen"] = {
+                "score": tc.get("polyphen_score"),
+                "prediction": tc.get("polyphen_prediction")
+            }
+        if "sift_score" in tc:
+            scores["sift"] = {
+                "score": tc.get("sift_score"),
+                "prediction": tc.get("sift_prediction")
+            }
+            
+        return {"pathogenicity_scores": scores}
+    
+    def _extract_splicing_scores(self, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract splicing prediction scores"""
+        splicing = {}
+        
+        # SpliceAI
+        if "spliceai_pred_ds_ag" in tc:
+            splicing["spliceai"] = {
+                "ds_ag": tc.get("spliceai_pred_ds_ag"),
+                "ds_al": tc.get("spliceai_pred_ds_al"), 
+                "ds_dg": tc.get("spliceai_pred_ds_dg"),
+                "ds_dl": tc.get("spliceai_pred_ds_dl"),
+                "dp_ag": tc.get("spliceai_pred_dp_ag"),
+                "dp_al": tc.get("spliceai_pred_dp_al"),
+                "dp_dg": tc.get("spliceai_pred_dp_dg"),
+                "dp_dl": tc.get("spliceai_pred_dp_dl")
+            }
+            
+        # dbscSNV
+        if "ada_score" in tc:
+            splicing["dbscsnv"] = {
+                "ada_score": tc.get("ada_score"),
+                "rf_score": tc.get("rf_score")
+            }
+            
+        # SpliceRegion
+        if "splice_region_variant" in tc:
+            splicing["splice_region"] = tc.get("splice_region_variant")
+            
+        return {"splicing_scores": splicing}
+    
+    def _extract_population_data(self, tc: Dict[str, Any], vep_variant: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract population frequency and coverage data"""
+        population = {}
+        
+        # gnomAD frequencies (handled in main population_frequencies)
+        # gnomADc coverage data
+        if "gnomad_exome_coverage" in tc:
+            population["gnomad_coverage"] = {
+                "exome_mean": tc.get("gnomad_exome_coverage"),
+                "genome_mean": tc.get("gnomad_genome_coverage")
+            }
+            
+        return {"population_data": population}
+    
+    def _extract_clinical_data(self, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract clinical and phenotype data"""
+        clinical = {}
+        
+        # ClinVar (handled separately)
+        # Phenotypes
+        if "phenotype" in tc:
+            clinical["phenotypes"] = tc.get("phenotype")
+            
+        return {"clinical_data": clinical}
+    
+    def _extract_conservation_data(self, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract conservation and constraint scores"""
+        conservation = {}
+        
+        # Conservation scores
+        if "gerp_rs" in tc:
+            conservation["gerp"] = tc.get("gerp_rs")
+        if "phylop_score" in tc:
+            conservation["phylop"] = tc.get("phylop_score")
+        if "phastcons_score" in tc:
+            conservation["phastcons"] = tc.get("phastcons_score")
+            
+        # LoFtool
+        if "loftool" in tc:
+            conservation["loftool"] = tc.get("loftool")
+            
+        return {"conservation_data": conservation}
+    
+    def _extract_literature_data(self, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract literature and experimental evidence"""
+        literature = {}
+        
+        # AVADA
+        if "avada_score" in tc:
+            literature["avada"] = {
+                "score": tc.get("avada_score"),
+                "evidence": tc.get("avada_evidence")
+            }
+            
+        # MaveDB
+        if "mavedb_score" in tc:
+            literature["mavedb"] = {
+                "score": tc.get("mavedb_score"),
+                "assay": tc.get("mavedb_assay")
+            }
+            
+        return {"literature_data": literature}
+    
+    def _extract_regulatory_data(self, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract structural and regulatory data"""
+        regulatory = {}
+        
+        # StructuralVariantOverlap
+        if "sv_overlap" in tc:
+            regulatory["sv_overlap"] = tc.get("sv_overlap")
+            
+        # UTRAnnotator
+        if "utr_annotation" in tc:
+            regulatory["utr_annotation"] = tc.get("utr_annotation")
+            
+        # Enformer
+        if "enformer_score" in tc:
+            regulatory["enformer"] = tc.get("enformer_score")
+            
+        return {"regulatory_data": regulatory}
+    
+    def _extract_qc_data(self, tc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract quality control and ACMG data"""
+        qc = {}
+        
+        # GeneBe ACMG
+        if "genebe_acmg" in tc:
+            qc["genebe_acmg"] = tc.get("genebe_acmg")
+            
+        # NMD
+        if "nmd_escape" in tc:
+            qc["nmd_escape"] = tc.get("nmd_escape")
+            
+        return {"qc_data": qc}
 
 
 def annotate_vcf_with_vep(input_vcf: Path,

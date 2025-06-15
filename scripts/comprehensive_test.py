@@ -33,7 +33,7 @@ def setup_logging(log_file: Path = None):
     """Setup comprehensive logging"""
     
     if log_file is None:
-        log_file = repo_root / "test_results" / f"comprehensive_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        log_file = repo_root / "out" / "test_results" / f"comprehensive_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     
     log_file.parent.mkdir(exist_ok=True)
     
@@ -71,7 +71,7 @@ class ComprehensiveTestRunner:
         self.test_results = {}
         self.repo_root = repo_root
         self.example_input_dir = self.repo_root / "example_input"
-        self.test_output_dir = self.repo_root / "test_results"
+        self.test_output_dir = self.repo_root / "out" / "test_results"
         self.test_output_dir.mkdir(exist_ok=True)
         
     def run_all_tests(self) -> Dict[str, Any]:

@@ -9,7 +9,7 @@
 *.log
 
 
-
+out/
 work/
 .nextflow/
 .nextflow.lo*

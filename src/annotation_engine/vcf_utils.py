@@ -137,9 +137,25 @@ class VCFFileHandler:
             
             # Check header
             stats["format_valid"] = True
-            stats["has_samples"] = len(reader.header.samples) > 0
-            stats["sample_count"] = len(reader.header.samples)
-            stats["sample_names"] = list(reader.header.samples)
+            
+            # Handle SamplesInfos object properly
+            try:
+                sample_names = list(reader.header.samples)
+                stats["has_samples"] = len(sample_names) > 0
+                stats["sample_count"] = len(sample_names)
+                stats["sample_names"] = sample_names
+            except (TypeError, AttributeError) as sample_error:
+                # Fallback for SamplesInfos objects that don't support len()
+                try:
+                    sample_names = [str(s) for s in reader.header.samples]
+                    stats["has_samples"] = len(sample_names) > 0
+                    stats["sample_count"] = len(sample_names)
+                    stats["sample_names"] = sample_names
+                except Exception:
+                    logger.debug(f"Could not extract sample info: {sample_error}")
+                    stats["has_samples"] = False
+                    stats["sample_count"] = 0
+                    stats["sample_names"] = []
             
             # Count variants and chromosomes
             variant_count = 0
@@ -266,8 +282,8 @@ class VCFFileHandler:
         
         # Extract sample data
         samples = []
-        for sample_name in record.call_names:
-            call = record.call_for_sample[sample_name]
+        for call in record.calls:
+            sample_name = call.sample
             sample_data = {
                 "name": sample_name,
                 "genotype": call.gt_alleles if hasattr(call, 'gt_alleles') else None,
@@ -275,9 +291,27 @@ class VCFFileHandler:
             }
             
             # Extract format fields
-            for key, value in call.data._asdict().items():
-                if value is not None:
-                    sample_data["data"][key] = value
+            if hasattr(call.data, '_asdict'):
+                # call.data is a namedtuple
+                for key, value in call.data._asdict().items():
+                    if value is not None:
+                        sample_data["data"][key] = value
+            elif hasattr(call.data, 'items'):
+                # call.data is already a dict
+                for key, value in call.data.items():
+                    if value is not None:
+                        sample_data["data"][key] = value
+            else:
+                # call.data is something else, try to iterate as dict
+                try:
+                    for key in dir(call.data):
+                        if not key.startswith('_'):
+                            value = getattr(call.data, key)
+                            if value is not None and not callable(value):
+                                sample_data["data"][key] = value
+                except Exception:
+                    # Skip format field extraction if we can't figure it out
+                    pass
             
             samples.append(sample_data)
         
@@ -291,7 +325,7 @@ class VCFFileHandler:
             "position": record.POS,
             "id": record.ID[0] if record.ID else None,
             "reference": record.REF,
-            "alternate": record.ALT[0].value if record.ALT else None,
+            "alternate": str(record.ALT[0]) if record.ALT else None,
             "quality_score": record.QUAL,
             "filter_status": record.FILTER,
             "info": info_dict,
@@ -301,7 +335,7 @@ class VCFFileHandler:
             # Additional extracted fields for convenience
             "allele_frequency": self._extract_af_from_info(info_dict),
             "total_depth": self._extract_dp_from_info(info_dict),
-            "variant_type": self._determine_variant_type(record.REF, record.ALT[0].value if record.ALT else "")
+            "variant_type": self._determine_variant_type(record.REF, str(record.ALT[0]) if record.ALT else "")
         }
     
     def _tabix_line_to_dict(self, line: str) -> Dict[str, Any]:

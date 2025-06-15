@@ -231,7 +231,7 @@ class VCFValidator:
             'position': record.POS,
             'id': record.ID[0] if record.ID else None,
             'reference': record.REF,
-            'alternate': record.ALT[0].value if record.ALT else None,
+            'alternate': record.ALT[0].value if record.ALT and hasattr(record.ALT[0], 'value') else (str(record.ALT[0]) if record.ALT else None),
             'quality': record.QUAL if record.QUAL is not None else None,
             'filter': record.FILTER[0] if record.FILTER else 'PASS',
             'variant_type': variant_type,
@@ -246,7 +246,7 @@ class VCFValidator:
             return 'unknown'
         
         ref = record.REF
-        alt = record.ALT[0].value
+        alt = record.ALT[0].value if hasattr(record.ALT[0], 'value') else str(record.ALT[0])
         
         if len(ref) == 1 and len(alt) == 1:
             return 'SNV'
