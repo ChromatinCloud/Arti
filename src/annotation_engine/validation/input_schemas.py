@@ -45,6 +45,10 @@ class CLIInputSchema(BaseSchema):
     oncotree_id: Optional[str] = Field(None, max_length=50, description="OncoTree disease code")
     tissue_type: str = Field("primary_tumor", description="Tissue type")
     
+    # Tumor purity information
+    tumor_purity: Optional[float] = Field(None, ge=0.0, le=1.0, description="Estimated tumor purity (0.0-1.0)")
+    purple_output: Optional[Path] = Field(None, description="Path to HMF PURPLE output directory")
+    
     # Output configuration
     output: Path = Field(Path("./results"), description="Output directory")
     output_format: str = Field("all", description="Output format")

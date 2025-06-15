@@ -69,8 +69,8 @@ class TestDynamicSomaticConfidenceCalculation:
         assert dsc_result.vaf_purity_score > 0.8  # Good VAF/purity consistency
         assert dsc_result.prior_probability_score > 0.8  # Hotspot gives high somatic prior
         assert dsc_result.hotspot_evidence is True
-        assert "vaf_purity_consistency" in dsc_result.modules_available
-        assert "somatic_germline_prior" in dsc_result.modules_available
+        assert "vaf_purity" in dsc_result.modules_available
+        assert "prior_probability" in dsc_result.modules_available
     
     def test_moderate_confidence_somatic(self):
         """Test DSC for moderate confidence somatic variant"""
@@ -187,8 +187,8 @@ class TestDynamicSomaticConfidenceCalculation:
         assert dsc_result.vaf_purity_score is None  # Can't calculate without purity
         assert dsc_result.prior_probability_score > 0.7  # Hotspot still gives good prior
         assert dsc_result.dsc_confidence < 1.0  # Reduced confidence due to missing data
-        assert "somatic_germline_prior" in dsc_result.modules_available
-        assert "vaf_purity_consistency" not in dsc_result.modules_available
+        assert "prior_probability" in dsc_result.modules_available
+        assert "vaf_purity" not in dsc_result.modules_available
     
     def test_extreme_vaf_scenarios(self):
         """Test DSC for extreme VAF scenarios"""

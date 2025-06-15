@@ -146,6 +146,16 @@ class AnnotationEngineCLI:
             default=['AMP_2017', 'VICC_2022', 'ONCOKB'],
             help='Clinical guidelines to apply (default: all)'
         )
+        parser.add_argument(
+            '--tumor-purity',
+            type=float,
+            help='Estimated tumor purity (0.0-1.0). If not provided, will be estimated from VAF data'
+        )
+        parser.add_argument(
+            '--purple-output',
+            type=Path,
+            help='Path to HMF PURPLE output directory for purity estimation'
+        )
         
         # Quality control
         parser.add_argument(

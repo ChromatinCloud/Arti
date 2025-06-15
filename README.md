@@ -32,8 +32,14 @@ poetry install --no-root
 # Run tests
 poetry run pytest -q
 
-# Annotate example.vcf (after implementation)
+# Annotate tumor-only VCF
 poetry run python cli.py example.vcf --cancer-type lung --out example.json
+
+# Annotate tumor-normal pair
+poetry run python cli.py --tumor-vcf tumor.vcf --normal-vcf normal.vcf --cancer-type lung --out results.json
+
+# Provide tumor purity for enhanced confidence scoring
+poetry run python cli.py example.vcf --cancer-type lung --tumor-purity 0.75 --out example.json
 ```
 
 ---

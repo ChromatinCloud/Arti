@@ -26,6 +26,7 @@ from .models import (
     EvidenceStrength, ContextSpecificTierAssignment, AnalysisType,
     DynamicSomaticConfidence
 )
+from .purity_estimation import estimate_tumor_purity, PurityEstimate
 
 logger = logging.getLogger(__name__)
 
@@ -300,18 +301,38 @@ class DynamicSomaticConfidenceCalculator:
         self.tumor_suppressors = {"TP53", "APC", "BRCA1", "BRCA2", "PTEN", "RB1", "VHL", "NF1"}
     
     def calculate_dsc_score(self, variant: VariantAnnotation, evidence_list: List[Evidence], 
-                           tumor_purity: Optional[float] = None) -> DynamicSomaticConfidence:
+                           tumor_purity: Optional[float] = None,
+                           variant_annotations: Optional[List[VariantAnnotation]] = None,
+                           analysis_type: AnalysisType = AnalysisType.TUMOR_ONLY,
+                           metadata: Optional[Dict[str, Any]] = None) -> DynamicSomaticConfidence:
         """
         Calculate Dynamic Somatic Confidence score using multiple evidence modules
         
         Args:
             variant: Variant annotation with population frequencies, etc.
             evidence_list: Evidence from knowledge bases
-            tumor_purity: Estimated tumor purity (0-1)
+            tumor_purity: Estimated tumor purity (0-1), if None will estimate from data
+            variant_annotations: All variant annotations for purity estimation
+            analysis_type: Analysis workflow type
+            metadata: Analysis metadata potentially containing purity info
             
         Returns:
             DynamicSomaticConfidence scoring object
         """
+        
+        # If tumor purity is not provided, estimate it from available data
+        if tumor_purity is None and variant_annotations is not None:
+            try:
+                purity_estimate = estimate_tumor_purity(
+                    variant_annotations=variant_annotations,
+                    analysis_type=analysis_type,
+                    metadata=metadata
+                )
+                tumor_purity = purity_estimate.purity
+                logger.info(f"Estimated tumor purity: {tumor_purity:.3f} (confidence: {purity_estimate.confidence:.3f})")
+            except Exception as e:
+                logger.warning(f"Failed to estimate tumor purity: {e}")
+                tumor_purity = None
         modules_used = []
         
         # Module 1: VAF/Purity Consistency (if available)
@@ -357,34 +378,100 @@ class DynamicSomaticConfidenceCalculator:
         )
     
     def _calculate_vaf_purity_score(self, variant: VariantAnnotation, tumor_purity: Optional[float]) -> Optional[float]:
-        """Module 1: VAF/Purity consistency scoring"""
+        """
+        Module 1: VAF/Purity consistency scoring using HMF PURPLE-inspired methodology
+        
+        Evaluates if the variant's VAF is consistent with somatic origin given tumor purity.
+        Considers heterozygous, homozygous/LOH, and subclonal patterns.
+        """
         if tumor_purity is None or not hasattr(variant, 'vaf') or variant.vaf is None:
             return None
         
         vaf = variant.vaf
         purity = tumor_purity
         
-        # Expected VAF for heterozygous somatic mutation
+        # Define expected VAF ranges for different scenarios
+        # Account for copy number variations and subclonality
+        
+        # Scenario 1: Heterozygous somatic (most common)
         expected_het_vaf = purity / 2
-        # Expected VAF for homozygous/LOH somatic mutation
+        het_tolerance = 0.25  # ±25% tolerance (more permissive)
+        
+        # Scenario 2: Homozygous/LOH somatic 
         expected_hom_vaf = purity
+        hom_tolerance = 0.30  # ±30% tolerance (more variable)
         
-        # Calculate deviation from expected somatic VAF patterns
-        het_deviation = abs(vaf - expected_het_vaf) / expected_het_vaf if expected_het_vaf > 0 else 1.0
-        hom_deviation = abs(vaf - expected_hom_vaf) / expected_hom_vaf if expected_hom_vaf > 0 else 1.0
+        # Scenario 3: Subclonal somatic (fraction of clone)
+        # Expected range: 0.05 to purity/2
+        subclonal_min = 0.05
+        subclonal_max = expected_het_vaf
         
-        # Take the better match (het or hom)
-        min_deviation = min(het_deviation, hom_deviation)
+        # Scenario 4: Germline contamination (suspicious for somatic)
+        # VAF around 0.5 * purity (diluted germline)
+        germline_contamination_vaf = 0.5 * purity
         
-        # Score based on deviation (lower deviation = higher confidence)
-        if min_deviation < 0.2:  # Very close match
-            return 0.9
-        elif min_deviation < 0.5:  # Good match
-            return 0.7
-        elif min_deviation < 1.0:  # Moderate match (subclonal)
-            return 0.5
-        else:  # Poor match - suspicious
-            return 0.2
+        # Calculate consistency scores for each scenario
+        scores = []
+        
+        # Heterozygous somatic score
+        if expected_het_vaf > 0:
+            het_deviation = abs(vaf - expected_het_vaf) / expected_het_vaf
+            if het_deviation <= het_tolerance:
+                het_score = 1.0 - (het_deviation / het_tolerance) * 0.1  # 0.9-1.0
+                scores.append(("heterozygous", het_score))
+        
+        # Homozygous/LOH somatic score
+        if expected_hom_vaf > 0 and vaf > 0.3:  # Only consider if VAF is reasonably high
+            hom_deviation = abs(vaf - expected_hom_vaf) / expected_hom_vaf
+            if hom_deviation <= hom_tolerance:
+                hom_score = 0.95 - (hom_deviation / hom_tolerance) * 0.15  # 0.8-0.95
+                scores.append(("homozygous_loh", hom_score))
+        
+        # Subclonal somatic score
+        if subclonal_min <= vaf <= subclonal_max:
+            # Score based on how well it fits subclonal pattern
+            subclonal_score = 0.3 + 0.4 * (vaf / subclonal_max)  # 0.3-0.7
+            scores.append(("subclonal", subclonal_score))
+        
+        # Check for suspicious patterns
+        
+        # Pattern 1: VAF too high for purity (suggests germline or copy gain)
+        if vaf > purity + 0.1:
+            if abs(vaf - 0.5) < 0.1:  # Close to 50% = likely germline
+                return 0.1  # Very low somatic confidence
+            else:
+                # Could be copy number alteration, moderate penalty
+                return 0.4
+        
+        # Pattern 2: VAF around pure germline level (close to 50%)
+        if abs(vaf - 0.5) < 0.05 and vaf > 0.45:
+            return 0.2  # Low somatic confidence - likely germline
+        
+        # Pattern 3: Very low VAF in high purity (artifacts/CHIP)
+        if vaf < 0.05 and purity > 0.7:
+            return 0.3  # Could be artifact or CHIP
+        
+        # Return best matching scenario score
+        if scores:
+            best_scenario, best_score = max(scores, key=lambda x: x[1])
+            
+            # Apply additional modifiers based on variant characteristics
+            
+            # Boost for variants in tumor suppressor genes (LOH more likely)
+            if best_scenario == "homozygous_loh" and hasattr(variant, 'is_tumor_suppressor') and variant.is_tumor_suppressor:
+                best_score = min(1.0, best_score + 0.1)
+            
+            # Boost for high-quality, high-depth variants
+            if hasattr(variant, 'total_depth') and variant.total_depth and variant.total_depth > 100:
+                best_score = min(1.0, best_score + 0.05)
+            
+            return best_score
+        else:
+            # No good match found - assign low score based on general plausibility
+            if 0.05 <= vaf <= purity:
+                return 0.3  # Plausible but not well-explained
+            else:
+                return 0.1  # Implausible for somatic origin
     
     def _calculate_prior_probability_score(self, variant: VariantAnnotation, evidence_list: List[Evidence]) -> float:
         """Module 2: Somatic vs Germline Prior Probability"""
@@ -446,14 +533,14 @@ class DynamicSomaticConfidenceCalculator:
     
     def _combine_module_scores(self, vaf_purity: Optional[float], prior_prob: float, 
                               genomic_context: Optional[float]) -> float:
-        """Combine module scores into final DSC score"""
+        """Combine module scores into final DSC score with synergistic effects"""
         scores = [prior_prob]  # Always have prior probability
         weights = [0.6]  # Base weight for prior probability
         
         if vaf_purity is not None:
             scores.append(vaf_purity)
-            weights.append(0.3)  # VAF/purity gets significant weight
-            weights[0] = 0.4  # Reduce prior prob weight
+            weights.append(0.4)  # VAF/purity gets significant weight
+            weights[0] = 0.6  # Keep prior prob weight high
         
         if genomic_context is not None:
             scores.append(genomic_context)
@@ -463,8 +550,15 @@ class DynamicSomaticConfidenceCalculator:
             weights = [w * 0.8 / total_weight for w in weights]
             weights.append(0.2)
         
-        # Weighted average
-        return sum(score * weight for score, weight in zip(scores, weights))
+        # Calculate base weighted average
+        base_score = sum(score * weight for score, weight in zip(scores, weights))
+        
+        # Apply synergistic boost when both VAF/purity and prior are high
+        if vaf_purity is not None and vaf_purity > 0.8 and prior_prob > 0.8:
+            synergy_boost = 0.1 * min(vaf_purity, prior_prob)
+            base_score = min(1.0, base_score + synergy_boost)
+        
+        return base_score
     
     def _calculate_dsc_confidence(self, modules_used: List[str], variant: VariantAnnotation, 
                                  evidence_list: List[Evidence]) -> float:
