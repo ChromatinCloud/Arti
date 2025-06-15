@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 
 from .validation.error_handler import ValidationError
+from .vcf_utils import VCFFileHandler, detect_vcf_file_type
 
 
 class VCFFieldExtractor:
@@ -77,23 +78,48 @@ class VCFFieldExtractor:
     def extract_variant_bundle(self, vcf_path: Path) -> List[Dict[str, Any]]:
         """
         Extract complete variant bundles with standard VCF fields
+        Supports both plain text and gzipped VCF files with tabix indexing
         
         Args:
-            vcf_path: Path to VCF file
+            vcf_path: Path to VCF file (.vcf or .vcf.gz)
             
         Returns:
             List of variant bundles with standard VCF spec fields
         """
         try:
+            # Detect and validate VCF file type
+            file_type = detect_vcf_file_type(vcf_path)
+            
+            if not file_type["can_process"]:
+                raise ValidationError(
+                    error_type="unsupported_file_type",
+                    message=f"Cannot process file type: {file_type['file_type']}",
+                    details={"vcf_path": str(vcf_path), "file_type": file_type}
+                )
+            
+            # Use VCF handler for robust file handling
+            vcf_handler = VCFFileHandler(vcf_path)
+            
+            # Auto-create tabix index if gzipped but not indexed
+            if vcf_handler.is_gzipped and not vcf_handler.is_indexed:
+                self.logger.info(f"Creating tabix index for gzipped VCF: {vcf_path}")
+                try:
+                    vcf_handler.create_tabix_index()
+                except Exception as e:
+                    self.logger.warning(f"Failed to create tabix index (continuing anyway): {e}")
+            
+            # Extract variants using our enhanced handler
             variant_bundles = []
+            for variant_dict in vcf_handler.iterate_variants():
+                # Convert to our expected format if needed
+                variant_bundle = self._standardize_variant_dict(variant_dict)
+                variant_bundles.append(variant_bundle)
             
-            with pysam.VariantFile(str(vcf_path)) as vcf:
-                for record in vcf.fetch():
-                    variant_bundle = self._extract_variant_fields(record)
-                    variant_bundles.append(variant_bundle)
-            
+            self.logger.info(f"Extracted {len(variant_bundles)} variants from {vcf_path}")
             return variant_bundles
             
+        except ValidationError:
+            raise
         except Exception as e:
             raise ValidationError(
                 error_type="variant_extraction_error",
@@ -275,6 +301,146 @@ class VCFFieldExtractor:
             return None
         except (TypeError, IndexError, ZeroDivisionError):
             return None
+    
+    def _standardize_variant_dict(self, variant_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Standardize variant dictionary from VCF utilities to expected format
+        
+        This method ensures compatibility between VCFFileHandler output
+        and the format expected by downstream components.
+        """
+        # If already in expected format, return as-is
+        if 'samples' in variant_dict and isinstance(variant_dict['samples'], list):
+            # Calculate VAF for samples if not present
+            for sample in variant_dict['samples']:
+                if 'variant_allele_frequency' not in sample and 'data' in sample:
+                    # Try to calculate VAF from AD field
+                    ad_data = sample['data'].get('AD')
+                    if ad_data:
+                        # Handle different AD formats
+                        if isinstance(ad_data, str):
+                            try:
+                                ad_values = [int(x) for x in ad_data.split(',')]
+                                if len(ad_values) >= 2:
+                                    total_depth = sum(ad_values)
+                                    if total_depth > 0:
+                                        sample['variant_allele_frequency'] = ad_values[1] / total_depth
+                            except (ValueError, IndexError):
+                                pass
+                        elif isinstance(ad_data, list) and len(ad_data) >= 2:
+                            try:
+                                total_depth = sum(ad_data)
+                                if total_depth > 0:
+                                    sample['variant_allele_frequency'] = ad_data[1] / total_depth
+                            except (TypeError, ZeroDivisionError):
+                                pass
+            
+            return variant_dict
+        
+        # Convert from VCFFileHandler format to expected format
+        standardized = {
+            'chromosome': variant_dict.get('chromosome'),
+            'position': variant_dict.get('position'),
+            'reference': variant_dict.get('reference'),
+            'alternate': variant_dict.get('alternate'),
+            'quality_score': variant_dict.get('quality_score'),
+            'filter_status': variant_dict.get('filter_status', ['PASS']),
+            
+            # Standard INFO fields
+            'allele_frequency': variant_dict.get('allele_frequency'),
+            'total_depth': variant_dict.get('total_depth'),
+            'dbsnp_member': variant_dict.get('info', {}).get('DB', False),
+            'somatic_flag': variant_dict.get('info', {}).get('SOMATIC', False),
+            
+            # Sample data conversion
+            'samples': []
+        }
+        
+        # Convert sample format
+        vcf_samples = variant_dict.get('samples', [])
+        for sample in vcf_samples:
+            sample_data = {
+                'sample_name': sample.get('name', 'UNKNOWN'),
+                'genotype': self._format_genotype_from_sample(sample),
+                'variant_allele_frequency': self._extract_vaf_from_sample(sample)
+            }
+            
+            # Add additional sample data
+            if 'data' in sample:
+                sample_data.update({
+                    'sample_depth': sample['data'].get('DP'),
+                    'allelic_depths': self._parse_allelic_depths(sample['data'].get('AD')),
+                    'genotype_quality': sample['data'].get('GQ'),
+                })
+            
+            standardized['samples'].append(sample_data)
+        
+        return standardized
+    
+    def _format_genotype_from_sample(self, sample: Dict[str, Any]) -> Optional[str]:
+        """Format genotype from sample data"""
+        if 'genotype' in sample and sample['genotype']:
+            gt = sample['genotype']
+            if isinstance(gt, list):
+                return '/'.join(map(str, gt))
+            return str(gt)
+        
+        # Try to get from data.GT
+        if 'data' in sample and 'GT' in sample['data']:
+            gt_data = sample['data']['GT']
+            if isinstance(gt_data, str):
+                return gt_data
+            elif isinstance(gt_data, list):
+                return '/'.join(map(str, gt_data))
+        
+        return None
+    
+    def _extract_vaf_from_sample(self, sample: Dict[str, Any]) -> Optional[float]:
+        """Extract VAF from sample data"""
+        if 'data' not in sample:
+            return None
+        
+        data = sample['data']
+        
+        # Try common VAF fields
+        for vaf_field in ['VAF', 'AF', 'FREQ']:
+            if vaf_field in data:
+                try:
+                    vaf_value = data[vaf_field]
+                    if isinstance(vaf_value, str):
+                        # Handle percentage strings
+                        if vaf_value.endswith('%'):
+                            return float(vaf_value.rstrip('%')) / 100.0
+                        return float(vaf_value)
+                    return float(vaf_value)
+                except (ValueError, TypeError):
+                    continue
+        
+        # Calculate from AD if available
+        if 'AD' in data:
+            ad_data = data['AD']
+            allelic_depths = self._parse_allelic_depths(ad_data)
+            if allelic_depths and len(allelic_depths) >= 2:
+                return self._calculate_vaf(allelic_depths)
+        
+        return None
+    
+    def _parse_allelic_depths(self, ad_data) -> Optional[List[int]]:
+        """Parse allelic depths from various formats"""
+        if not ad_data:
+            return None
+        
+        try:
+            if isinstance(ad_data, str):
+                return [int(x) for x in ad_data.split(',')]
+            elif isinstance(ad_data, list):
+                return [int(x) for x in ad_data]
+            elif isinstance(ad_data, (int, float)):
+                return [int(ad_data)]
+        except (ValueError, TypeError):
+            pass
+        
+        return None
     
     def extract_genome_build_from_header(self, vcf_path: Path) -> Optional[str]:
         """Quick extraction of genome build from VCF header"""

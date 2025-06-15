@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from .models import VariantAnnotation, AnalysisType
 from .vcf_filtering import filter_vcf_by_analysis_type
 from .validation.error_handler import ValidationError
+from .vep_runner import annotate_vcf_with_vep, VEPConfiguration
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,9 @@ class VariantProcessor:
     Coordinates filtering → annotation → evidence aggregation
     """
     
-    def __init__(self):
+    def __init__(self, vep_config: Optional[VEPConfiguration] = None):
         self.logger = logging.getLogger(__name__)
+        self.vep_config = vep_config
     
     def process_variants(self, 
                         tumor_vcf_path: Path,
@@ -53,9 +55,9 @@ class VariantProcessor:
             tumor_vcf_path, analysis_type, normal_vcf_path, **filter_kwargs
         )
         
-        # Step 2: Convert filtered VCF records to VariantAnnotation objects
-        variant_annotations = self._convert_to_variant_annotations(
-            filtered_variants, analysis_type, cancer_type
+        # Step 2: Run VEP annotation on filtered variants
+        variant_annotations = self._annotate_variants_with_vep(
+            filtered_variants, tumor_vcf_path, analysis_type, cancer_type
         )
         
         # Step 3: Basic quality control and validation
@@ -110,11 +112,125 @@ class VariantProcessor:
                 }
             )
     
-    def _convert_to_variant_annotations(self, 
-                                      filtered_variants: List[Dict[str, Any]],
-                                      analysis_type: AnalysisType,
-                                      cancer_type: str) -> List[VariantAnnotation]:
-        """Convert filtered VCF records to VariantAnnotation objects"""
+    def _annotate_variants_with_vep(self, 
+                                   filtered_variants: List[Dict[str, Any]],
+                                   original_vcf_path: Path,
+                                   analysis_type: AnalysisType,
+                                   cancer_type: str) -> List[VariantAnnotation]:
+        """Annotate filtered variants using VEP"""
+        
+        # If no variants after filtering, return empty list
+        if not filtered_variants:
+            logger.info("No variants to annotate after filtering")
+            return []
+        
+        # Create temporary VCF with filtered variants
+        temp_vcf_path = self._create_temp_vcf(filtered_variants, original_vcf_path)
+        
+        try:
+            # Run VEP annotation
+            logger.info(f"Running VEP annotation on {len(filtered_variants)} filtered variants")
+            variant_annotations = annotate_vcf_with_vep(
+                input_vcf=temp_vcf_path,
+                output_format="annotations",
+                config=self.vep_config
+            )
+            
+            # Enhance annotations with VCF quality data
+            enhanced_annotations = self._enhance_annotations_with_vcf_data(
+                variant_annotations, filtered_variants
+            )
+            
+            logger.info(f"VEP annotation complete: {len(enhanced_annotations)} variants annotated")
+            return enhanced_annotations
+            
+        except Exception as e:
+            logger.error(f"VEP annotation failed: {e}")
+            # Fall back to basic annotation without VEP
+            logger.warning("Falling back to basic annotation without VEP")
+            return self._create_basic_annotations(filtered_variants)
+        
+        finally:
+            # Clean up temporary VCF
+            if temp_vcf_path.exists():
+                temp_vcf_path.unlink()
+    
+    def _create_temp_vcf(self, filtered_variants: List[Dict[str, Any]], original_vcf_path: Path) -> Path:
+        """Create temporary VCF file with filtered variants"""
+        
+        import tempfile
+        
+        # Create temporary VCF file
+        temp_fd, temp_vcf_path = tempfile.mkstemp(suffix='.vcf', prefix='filtered_')
+        temp_vcf_path = Path(temp_vcf_path)
+        
+        try:
+            with open(temp_vcf_path, 'w') as temp_vcf:
+                # Copy header from original VCF
+                with open(original_vcf_path, 'r') as orig_vcf:
+                    for line in orig_vcf:
+                        if line.startswith('#'):
+                            temp_vcf.write(line)
+                        else:
+                            break  # Stop at first data line
+                
+                # Write filtered variants
+                for variant in filtered_variants:
+                    # Format VCF line
+                    vcf_line = "\t".join([
+                        str(variant.get('chromosome', '.')),
+                        str(variant.get('position', '.')),
+                        variant.get('id', '.'),
+                        variant.get('reference', '.'),
+                        variant.get('alternate', '.'),
+                        str(variant.get('quality_score', '.')),
+                        variant.get('filter_status', 'PASS'),
+                        variant.get('info', '.'),
+                        variant.get('format', '.'),
+                        variant.get('sample_data', '.')
+                    ])
+                    temp_vcf.write(vcf_line + '\n')
+            
+            return temp_vcf_path
+            
+        except Exception as e:
+            if temp_vcf_path.exists():
+                temp_vcf_path.unlink()
+            raise ValidationError(
+                error_type="temp_vcf_creation_error",
+                message=f"Failed to create temporary VCF: {e}",
+                details={"original_vcf": str(original_vcf_path), "error": str(e)}
+            )
+    
+    def _enhance_annotations_with_vcf_data(self, 
+                                         variant_annotations: List[VariantAnnotation],
+                                         filtered_variants: List[Dict[str, Any]]) -> List[VariantAnnotation]:
+        """Enhance VEP annotations with VCF quality data"""
+        
+        # Create lookup for VCF data by position
+        vcf_lookup = {}
+        for variant in filtered_variants:
+            key = f"{variant.get('chromosome')}:{variant.get('position')}"
+            vcf_lookup[key] = variant
+        
+        enhanced_annotations = []
+        
+        for annotation in variant_annotations:
+            key = f"{annotation.chromosome}:{annotation.position}"
+            vcf_data = vcf_lookup.get(key, {})
+            
+            # Update annotation with VCF quality data
+            annotation.quality_score = vcf_data.get('quality_score', annotation.quality_score)
+            annotation.filter_status = vcf_data.get('filter_status', annotation.filter_status) or ['PASS']
+            annotation.total_depth = vcf_data.get('total_depth', annotation.total_depth)
+            annotation.vaf = self._extract_vaf(vcf_data) or annotation.vaf
+            
+            enhanced_annotations.append(annotation)
+        
+        return enhanced_annotations
+    
+    def _create_basic_annotations(self, filtered_variants: List[Dict[str, Any]]) -> List[VariantAnnotation]:
+        """Create basic VariantAnnotation objects without VEP (fallback)"""
         
         variant_annotations = []
         
@@ -134,7 +250,7 @@ class VariantProcessor:
                     total_depth=vcf_record.get('total_depth'),
                     vaf=self._extract_vaf(vcf_record),
                     
-                    # Basic annotations (to be filled by VEP later)
+                    # Basic annotations (without VEP)
                     consequence=self._extract_consequence(vcf_record),
                     impact=vcf_record.get('impact'),
                     
@@ -143,13 +259,16 @@ class VariantProcessor:
                     hotspot_evidence=[],
                     functional_predictions=[],
                     civic_evidence=[],
-                    therapeutic_implications=[]
+                    therapeutic_implications=[],
+                    
+                    # Metadata
+                    annotation_source="basic_annotation"
                 )
                 
                 variant_annotations.append(variant_annotation)
                 
             except Exception as e:
-                logger.warning(f"Failed to convert variant to annotation: {e}")
+                logger.warning(f"Failed to create basic annotation for variant: {e}")
                 continue
         
         return variant_annotations
@@ -239,6 +358,7 @@ def create_variant_annotations_from_vcf(tumor_vcf_path: Path,
                                        analysis_type: AnalysisType,
                                        normal_vcf_path: Optional[Path] = None,
                                        cancer_type: str = "unknown",
+                                       vep_config: Optional[VEPConfiguration] = None,
                                        **kwargs) -> Tuple[List[VariantAnnotation], Dict[str, Any]]:
     """
     Convenience function to create variant annotations from VCF files
@@ -248,12 +368,13 @@ def create_variant_annotations_from_vcf(tumor_vcf_path: Path,
         analysis_type: Analysis workflow type
         normal_vcf_path: Path to normal VCF (for TN analysis)
         cancer_type: Cancer type context
+        vep_config: VEP configuration (optional)
         **kwargs: Additional processing parameters
         
     Returns:
         Tuple of (variant_annotations, processing_summary)
     """
-    processor = VariantProcessor()
+    processor = VariantProcessor(vep_config=vep_config)
     return processor.process_variants(
         tumor_vcf_path=tumor_vcf_path,
         analysis_type=analysis_type,

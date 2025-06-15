@@ -9,8 +9,10 @@
 *.log
 
 
+
 work/
 .nextflow/
+.nextflow.lo*
 
 # Editor-specific files
 .idea/

@@ -15,6 +15,7 @@ import pysam
 from .models import AnalysisType
 from .validation.error_handler import ValidationError
 from .vcf_parser import VCFFieldExtractor
+from .vcf_utils import VCFFileHandler, detect_vcf_file_type
 
 logger = logging.getLogger(__name__)
 
