@@ -1,0 +1,211 @@
+########################################################## Suggestion Set 1:
+### Strategic Blueprint — Condensed Edition
+
+*(All key ideas, tools, and action items preserved; verbosity removed)*
+
+---
+
+#### 1. High-Level Vision
+
+Build a **containerized, end-to-end Nextflow pipeline** that ingests raw FASTQ/BAM, produces deeply-annotated JSON + TSV outputs, and drives an interactive curation UI for clinical sign-off.
+
+---
+
+#### 2. Core Architectural Imperatives
+
+| Area                      | Keep                                                                           | Why / Extra Notes                                              |
+| ------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| **Workflow engine**       | **Nextflow + nf-core style modules**                                           | Reproducibility, easy HPC/Cloud migration                      |
+| **Execution environment** | **Docker / Singularity** for every step                                        | Immutable, version-tagged, audit-ready                         |
+| **Data bundling**         | Scripted, version-stamped “**data-bundle-vX.Y.Z**” tarball                     | Locks gnomAD, ClinVar, COSMIC, CIViC, OncoKB, etc. to each run |
+| **Internal format**       | **Structured JSON** (post-VCF)                                                 | Decouples annotation from interpretation logic                 |
+| **Validation loop**       | Unit → integration → end-to-end tests on GIAB / COLO829; CI via GitHub Actions | Maintains clinical accuracy each release                       |
+| **Last-mile UI**          | Web curation portal (Scout / IVA–like)                                         | Audit trail, tier overrides, PDF generation                    |
+
+---
+
+#### 3. Upstream Variant Calling (HMF-inspired)
+
+1. **SNV/Indel:** GATK **Mutect2** (tumor) + **HaplotypeCaller** (germline)
+2. **SV/CNV/Purity stack:**
+
+   * **GRIDSS → GRIPSS** (SV detection & filtering)
+   * **AMBER** (BAF) + **COBALT** (depth)
+   * **PURPLE** (purity, ploidy, absolute CN)
+   * **LINX** (fusions, complex events)
+
+> *Rationale: tightly-integrated purity context is critical for correct VAF interpretation.*
+
+---
+
+#### 4. Annotation Engine
+
+* **VEP** with plugins: **dbNSFP, AlphaMissense, SpliceAI, MaxEntScan**
+* **vcfanno** to layer: ClinVar (XML-parsed), COSMIC, CIViC, OncoKB, Cancer Hotspots, DrugBank, Reactome, etc.
+* Emit a **final JSON + TSV/Excel workbook** for downstream use.
+
+---
+
+#### 5. Automated Interpretation
+
+| Purpose           | Engine                          | Guideline Implemented                   |
+| ----------------- | ------------------------------- | --------------------------------------- |
+| **Actionability** | Scoring rules (CancerVar model) | AMP/ASCO/CAP 2017 Tiers I–IV            |
+| **Oncogenicity**  | Point-based (OncoVI / PCGR)     | ClinGen/CGC/VICC 2022 five-class system |
+
+---
+
+#### 6. Complex Biomarkers
+
+* **TMB:** PCGR method (non-syn SNVs/indels ÷ assay Mb)
+* **MSI:** MSIsensor / MANTIS
+* **Mutational signatures:** deconstructSigs (96-channel vector → COSMIC signatures)
+* **HRD:** **CHORD** classifier (SNV + indel + SV profiles)
+
+---
+
+#### 7. Reporting Stack
+
+1. **Tier 1** – TSV/Excel + master JSON (for bioinformatics deep-dive)
+2. **Tier 2** – Quarto-style interactive HTML (for molecular pathologist review)
+3. **Tier 3** – Database-backed curation UI (filter, override, sign-out, PDF)
+
+---
+
+#### 8. DevOps & QA Essentials
+
+* **Immutable containers & semantic tags** (`bwa:0.7.17`, `sigven/pcgr:2.2.1`, etc.).
+* **Git-tagged releases** (`v1.2.0`) and protected CI pipelines:
+
+  * mini-FASTQ regression set on every push
+  * auto-fail if metrics drift.
+* **Automated bundle builder** handles licenses & API tokens (OncoKB, COSMIC).
+
+---
+
+#### 9. Minimal Reference Toolchain Cheat-Sheet
+
+| Stage          | Tools / Packages                                                        |
+| -------------- | ----------------------------------------------------------------------- |
+| Orchestration  | Nextflow DSL2                                                           |
+| Containers     | Docker / Singularity                                                    |
+| Small-variants | Mutect2, HaplotypeCaller, Strelka2 (optional ensemble)                  |
+| SV/CNV         | GRIDSS, GRIPSS, AMBER, COBALT, PURPLE, LINX                             |
+| Annotation     | VEP + plugins, vcfanno                                                  |
+| KBs            | gnomAD, ClinVar, OncoKB, COSMIC, CIViC, AlphaMissense, SpliceAI, dbNSFP |
+| Biomarkers     | PCGR TMB/MSI/Signatures, CHORD HRD                                      |
+| Interpretation | CancerVar-style AMP tiering; OncoVI oncogenicity                        |
+| Reporting      | PCGR HTML template + Scout/IVA portal                                   |
+
+---
+
+#### 10. Immediate Action List
+
+1. **Fork nf-core/oncoanalyser** → strip to DNA-only MVP.
+2. Write **Dockerfile** that installs VEP + all plugins in one build step.
+3. Implement **bundle-builder** script (cron-able) producing `data-bundle.tar.gz`.
+4. Draft **nextflow\_schema.json** to validate all user-exposed params.
+5. Set up **GitHub Actions** matrix: unit, integration, full regression.
+6. Prototype **Quarto HTML** report; stub endpoints for curation UI.
+
+---
+
+This streamlined outline keeps every strategic recommendation, critical tool, and validation safeguard—minus the lengthy narrative.
+
+
+########################################################### Suggestion Set 2:
+# Comparative Analysis of Clinical Genomics Tools
+
+This analysis compares how leading clinical genomics tools handle key implementation areas. We focus on **Rules Implementation**, **VCF Parsing**, **Configuration Management**, and **Testing Strategy** across tools: PCGR (Personal Cancer Genome Reporter), Hartwig’s WiGiTS (e.g. PAVE/Rose), Nirvana (Illumina), OncoKB, CGI (Cancer Genome Interpreter), OncoVI, CancerVar, and the CGC/VICC guidelines. For each area, we summarize common approaches, map examples, highlight best practices, and offer guidance for implementation.
+
+## 1. Rules Implementation
+
+* **Guideline Coverage:** Tools vary in which guidelines they encode. *PCGR* explicitly implements ClinGen/CGC/VICC somatic oncogenicity rules and AMP/ASCO/CAP actionability tiers. *OncoVI* (Oncogenicity Variant Interpreter) likewise automates the ClinGen/CGC/VICC somatic oncogenicity SOP (though documentation is pending). *CancerVar* follows AMP/ASCO/CAP 2017 somatic-guidelines in a custom scoring scheme (using 13 criteria CBP1–CBP13 as evidence items, see GUI examples). *OncoKB* defines its own evidence levels (Levels 1–4) for therapeutic actionability, not mapping to AMP/ACMG codes. *CGI* uses internally defined categories (“validated oncogenic events” vs “predicted drivers/passengers”) and curated databases, but its exact rule logic is not public. *Nirvana* is purely an annotation engine (no interpretation rules). *WiGiTS* (Hartwig) pipelines like PAVE/Rose use curated knowledge (e.g. CIViC, OncoKB) for actionability, but do not publish a simple rule set. The **CGC/VICC guidelines themselves** define criteria like OS1–OS4 (oncogenic strong/moderate) and OM1–OM4 with point-scoring; PCGR’s documentation lists the ONCG\_ codes it uses to approximate these (e.g. `ONCG_OVS1` = null variant in TSG, `ONCG_OP4` = absent from gnomAD).
+
+* **Rule-to-KB Mapping:** Mapping variant rules to knowledge-base (KB) fields is tool-specific. For example, PCGR links:
+
+  * **PVS1-equivalent (ONCG\_OVS1):** VEP consequences (`stop_gained`, `frameshift_variant`, etc.) in a known tumor suppressor gene.
+  * **PS1-equivalent (ONCG\_OS1):** Same amino acid change as a known oncogenic variant (using ClinVar annotations).
+  * **Hotspot rules (OS3/OM4):** Variant occurring in high-frequency oncogenic hotspots (from cancerhotspots.org).
+  * **Computational (OP1):** Multiple damaging predictions (dbNSFP).
+  * **Population frequency (OP4/SBVS1):** Very low or very high MAF in gnomAD.
+
+  *CancerVar* maps evidence to its CBP criteria: e.g. CBP7 = “Absent or extremely low MAF in population databases”, CBP9 = “Present in somatic databases (COSMIC, TCGA)”. OncoKB’s SOP (not easily citable) uses variant context (gene Oncogene/TSG, variant position) to assign Levels.
+
+* **Thresholds and Logic:** Tools use score thresholds or hierarchical logic. PCGR *scores* oncogenic criteria and requires certain totals (e.g. ≥4 points and at least three criteria or a hit of OS1) to call a variant oncogenic. CancerVar sums weights (Strong=3, Moderate=2, Supporting=1) over its CBP rules. OncoKB simply assigns the highest available evidence level for which criteria are met. Tools typically break ties by taking the more conservative/clinically relevant classification.
+
+* **Consequences as Triggers:** Many rules are triggered by specific variant consequences. For example, **loss-of-function** consequences (`stop_gained`, `splice_donor_variant`, etc.) trigger PVS1-like criteria (PCGR’s `ONCG_OVS1`). Missense changes at conserved positions or domains (e.g. VEP’s “deleterious” classifications, or UniProt domains) trigger OM1/PP3-like evidence. Frame-preserving in-frame indels in oncogenes (PCGR’s ONCG\_OM2) use transcript coordinates (via VEP) plus gene role (CGC). In short, tools parse VEP annotations (Sequence Ontology terms, prediction scores, domain flags) and KB gene roles to apply rule logic.
+
+* **OncoKB-specific Logic:** Only OncoKB uses its *FDA/clinical levels* logic. It categorizes gene–variant combinations into Levels 1–4 based on evidence sources (FDA approvals, NCCN guidelines, etc. in its curated data). It also flags a gene’s role (oncogene vs TSG) in its gene lists.
+
+**Example Mapping (by Tool):**
+
+| Tool                 | Guidelines Applied                                                        | Key Rules/Criteria (implementation)                                                                                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PCGR**             | ClinGen/CGC/VICC (oncogenicity); AMP/ASCO/CAP (actionability)             | Implements VICC SOP: ONCG\_OVS1 (PVS1-like LoF), ONCG\_OS1 (PS1-like), ONCG\_OM1–OM4, OP1–OP4, SBVS1/SBS1, etc.; AMP action tiers I–VI using CIViC/Cancer Biomarkers (tiers I/II strong or potential evidence).                                |
+| **Hartwig (WiGiTS)** | Not public; uses curated drivers/actionability (likely OncoKB/CIViC data) | Uses tools like *Rose* for actionability (treatment matching) and *Protect* for on-label matching. Specific rules unpublished; likely follows evidence tiers from OncoKB/CIViC.                                                                |
+| **Nirvana**          | None (annotator only)                                                     | Provides annotation (VEP consequences, population frequencies, ClinVar flags, predictions) for downstream rule engines; no built-in rule logic. Handles multi-allelic input and outputs structured JSON.                                       |
+| **OncoKB**           | Custom (levels of evidence)                                               | OncoKB Level 1–4 (FDA guidelines) for actionable evidence; gene-level Oncogene/TSG curation (for knowing mechanism). Uses gene-role to infer PVS1/OVS1 vs activating.                                                                          |
+| **CGI**              | Internal driver prediction model                                          | Classifies variants into *known drivers* (if in validated tumor drivers), *predicted drivers* (in cancer genes by frequency/context), or *passengers*. Also retrieves drugs via its Biomarkers DB (levels like PharmGKB). No public rule list. |
+| **OncoVI**           | ClinGen/CGC/VICC                                                          | Python implementation of the oncogenicity guideline (reports say it automates VICC points-based scoring).                                                                                                                                      |
+| **CancerVar**        | AMP/ASCO/CAP (Somatic)                                                    | Defines 13 criteria (CBP1–CBP13) analogous to AMP criteria (Therapeutic/Diagnostic/Prognostic evidence, variant type, frequency, databases, predictions, etc.). Scores each criterion (Strong/Mod/Supporting) and sums to assign Tier I–IV.    |
+| **CGC/VICC**         | ClinGen/CGC/VICC guidelines (2022)                                        | Defines evidence codes OS1–OS4, OM1–OM4, OP1, etc. Points-based scoring (+2, +4; −1, −4) for oncogenicity. Tools like PCGR implement subsets of these.                                                                                         |
+
+**Best Practices:** A common pattern is to drive rule logic from structured config (YAML/JSON) rather than hard-coding. For example, our blueprint suggests encoding each evidence code’s logic (consequence types, KB requirements, thresholds) in YAML rules. This allows updating guideline interpretations without rewriting code. It is also good to record the **source** of each rule (ClinGen SOP, OncoKB definitions, etc.) and to annotate conflicts (e.g. if one rule says “pathogenic” and another “benign”) by pre-defined conflict resolution (e.g. highest strength wins or ties break to VUS).
+
+<div markdown="1">![Example PCGR oncogenic criteria]:contentReference[oaicite:29]{index=29}:contentReference[oaicite:30]{index=30} *Figure: PCGR’s mapping of ClinGen/CGC/VICC oncogenicity criteria (ONCG_ codes) to VEP consequences and KB data (excerpt from PCGR docs).*</div>
+
+## 2. VCF Parsing
+
+* **Robust INFO Extraction:** Many tools use Ensembl VEP (e.g. PCGR) or equivalent parsers to normalize variant context. VEP gracefully splits multi-allelic sites and annotates each allele. *Nirvana* specifically notes: “handles multiple alternate alleles and multiple samples with ease”, producing a unified JSON with parsed INFO fields. *PCGR* also allows users to specify which VCF INFO tags hold allele depth (AD/DP) via options like `--tumor_dp_tag`, `--tumor_af_tag`, etc., ensuring correct depth/frequency parsing. Best practice is to explicitly map your VCF’s INFO tag names (especially in non-standard VCFs) to the fields your code expects.
+
+* **Multi-allelic Variants:** Tools differ in support. Nirvana fully supports multi-allelic records and will annotate each alternate as separate JSON entries. PCGR/VEP normally converts each alt into separate consequence records (VEP’s “--pick” or “--per\_allele” modes). Tools lacking multi-allelic support would require pre-normalizing (e.g. `bcftools norm -m -any`). Most modern pipelines assume normalized VCFs (left-aligned, split multi-allelic) before annotation.
+
+* **Normalization & Left-Alignment:** It is critical to normalize indels (left-align, minimal representation) before interpretation. Tools like PCGR assume either that input is normalized or do it internally (via VEP’s normalizer). When using multiple tools, ensure a consistent normalization step (e.g. use GATK or bcftools norm).
+
+* **Quality Filtering:** Tools typically allow or require filtering on quality fields. PCGR, for example, lets users set depth/AF thresholds (`--tumor_dp_min`, `--tumor_af_min`, etc.) to exclude low-confidence calls. Nirvana’s AWS pipeline likely filters via confidence tags or quality (it mentions a “call\_conf\_tag” option in docs). It’s best practice to apply stringent filters (e.g. DP≥10, AF≥5%) at import, and to carry along FILTER and QUAL from the VCF. Hard filters can be skipped in initial parsing, but flagged for downstream logic.
+
+* **Phasing and Haplotypes:** Most somatic pipelines ignore phasing (since tumor heterogeneity breaks this). Germline-focused tools may keep phase blocks. If phasing is needed (e.g. compound het), use tools like GATK ReadBackedPhasing. But none of the listed tools explicitly handles phasing in their interpretation step.
+
+**Best Practices:** Maintain raw and filtered records: e.g. one copy of the VCF raw and one post-QC. Convert VCF->normalized TSV/JSON early. Use CI to check that INFO fields are captured: e.g. in Nirvana, the output JSON schema shows all fields extracted. Include tests for multi-allelic input (e.g. a VCF with two ALTs) to ensure your code splits correctly.
+
+## 3. Configuration Management
+
+* **User-Editable Thresholds:** Few off-the-shelf tools let users edit interpretation rules without code changes. None of the listed tools expose YAML/JSON rule files for end-users. *PCGR* uses command-line flags and a fixed bundled config; *OncoKB* and *CGI* rely on their internal databases. Our blueprint recommends a versioned, YAML-first configuration (drawing on OncoKB’s versioning and CGI’s modular config). In practice, to allow hot updates, one can separate “rule logic” (in config files) from “engine code”, so that updating a YAML threshold (e.g. a new population frequency cutoff) does not require redeploying.
+
+* **Version Control:** Ideally, all config changes (score weights, evidence codes, database versions) should be tracked in version control. *OncoKB* actually publishes SOP versions (e.g. OncoKB V2 levels). Our example config (above) uses a `version.yaml` with changelog metadata. Current tools do not generally offer this to users; instead, they issue periodic software releases (e.g. PCGR 2.2.0) that include updated data.
+
+* **Hot-Reload / Dynamic Updates:** No tool among these supports changing the rule set without a new release. As a best practice, one could architect an “annotations-as-code” system where a new YAML file (following versioning) can be pulled at runtime. Example: reloading OncoKB tiers nightly via its API. For open-source projects, using environment variables or mounted volumes for config allows swapping in a new ruleset on the fly.
+
+**Summary:** In practice, we recommend modeling configuration on a modular YAML scheme (see sample in CONFIGURATION\_MANAGEMENT blueprint). This separates KB-specific processing (KB\_config.yaml) from thresholds (thresholds/*.yaml) and from evidence logic (clinical\_guidelines/*.yaml). This ensures changes (e.g. a new CIViC evidence level) are auditable and deployable without code changes. For existing tools, the closest is OncoKB’s published versioning approach, though it’s not user-configurable.
+
+## 4. Testing Strategy
+
+* **Curated Test VCFs:** Industry tools do use test sets. *Nirvana* boasts continuous integration: “millions of variant annotations are monitored against baseline values daily”, implying an extensive test suite of known variants. *PCGR* includes an automated test suite (`pytest`) for its codebase. In practice, one should assemble benchmark VCFs (e.g. GIAB samples for germline, synthetic or reference tumor VCFs for somatic) with expected classifications.
+
+* **Edge-Case Tests:** Best practice is to include cases covering low/high complexity: multiallelic loci, extreme GC-content, homopolymer indels, splice variants at non-canonical sites, very common vs ultra-rare alleles, manual vs pipeline-annotated transcripts. For each rule, test true-positive and false-positive scenarios (e.g. test PM1: variants in known functional domain vs benign domain).
+
+* **Integration Pipelines:** Run the full annotation pipeline on gold VCFs and compare the end tiers/calls to known truth. For actionability, one can use retrospectively annotated clinical samples (if available). Use continuous integration to re-run these tests when code or DB changes. For example, PCGR’s `pytest -q` suggests unit/regression tests are in place; Nirvana likely has thousands of unit tests for each update.
+
+* **Correctness Assertions:** In variant interpretation, “correctness” is often fuzzy, but enforce invariants: e.g. *only* assign Tier I if a Tier I rule truly matches; ensure population-frequency rules correctly downclassify common SNPs; verify that adding a new knowledgebase entry updates the results as expected. Write automated assertions, for example:
+
+  * Known recurrent BRAF V600E returns Tier I/Level 1 (CIViC A-level evidence).
+  * A well-characterized benign polymorphism (e.g. an rsID with high ClinVar LB) must not be labeled “oncogenic”.
+
+* **Best Practices:**
+
+  * **Version Data:** Like code, freeze specific versions of external data (ClinVar, gnomAD). Regenerate expected outputs if KB data updates.
+  * **Reporting Changes:** Log rule-matching details in the output (as PCGR does with a “call-outs” field) so that changes in rules or annotations can be audited.
+  * **Peer Review & Auditing:** Have clinical genetics experts review a sample of classifications regularly, especially after any rule update.
+
+For guidance to AI-driven development, we would recommend drafting rule implementations in modular functions (e.g. one function per evidence code) and writing unit tests that feed known variants into each function. The above mapping and logic examples serve as a template. Ensure that every rule triggered by a specific consequence (like frameshift triggering a “null variant” rule) is implemented as a discrete check.
+
+**Actionable Summary:**
+
+* Leverage VEP or similar to parse VCF INFO; confirm multi-allelic splitting and define filters (DP/AF) explicitly (e.g. PCGR’s `--tumor_af_min`).
+* Encode AMP/CGC rules in structured config (YAML), using resources like ClinVar or cancer hotspots as evidence (as PCGR does with ONCG codes).
+* Use existing datasets (NIST GIAB, TCGA mutation calls, author-reported hotspots) as test inputs.
+* Maintain **versioned configs** so that, e.g., a new CIViC evidence level can be applied by updating YAML, not by rewriting code.
+
+**Sources:** Official documentation and publications for each tool (e.g. PCGR docs, Nirvana website, CancerVar interface), as well as our internal blueprints for guideline mapping and config management, were used to compile this comparison.
+

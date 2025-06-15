@@ -5,10 +5,13 @@ This document records verified URLs and approaches for downloading knowledge bas
 ## Comprehensive Knowledge Base URLs - "Recipe Approach" (Last Updated: 2025-06-15)
 
 ### Recent Updates (This Session)
-- Added PCGR supplemental knowledge bases discovered from examination of PCGR data bundle
-- Enhanced `scripts/setup_comprehensive_kb.sh` with additional hotspot sources and clinical resources
-- Added biomarkers, gene mappings, disease ontologies, and cell line data sources
-- Created `src/annotation_engine/api_clients.py` and `src/annotation_engine/plugin_manager.py` for API and VEP plugin management
+- **URL Corrections Applied**: Fixed 8 failed download URLs using official website research
+- **OncoVI Path Fixed**: Updated from `/data/` to `/resources/` directory in MGCarta repository
+- **HGNC URL Updated**: Changed to Google Storage location for reliable access
+- **CancerMine Source**: Switched to Zenodo repository for stable downloads
+- **Audit System Implemented**: Added checksums (MD5/SHA256) and DOI tracking to download_audit.tsv
+- **Successful Downloads**: 15/42 knowledge bases now downloaded (1.1GB total)
+- **Failed Download Tracking**: 3-failure limit implemented with documented alternatives needed
 
 ### Essential Clinical Databases (~550MB total)
 
@@ -31,9 +34,10 @@ This document records verified URLs and approaches for downloading knowledge bas
 - **Status**: ✅ Working
 
 #### CancerMine (Literature Mining)
-- **TSV**: `http://bionlp.bcgsc.ca/cancermine/cancermine_collated.tsv` (20MB)
+- **TSV**: `https://zenodo.org/records/7689627/files/cancermine_collated.tsv?download=1` (20MB)
 - **Content**: Literature-mined oncogenes and tumor suppressors
-- **Status**: ✅ Working
+- **DOI**: `10.1038/s41592-019-0422-y`
+- **Status**: ✅ Working (Updated: Zenodo repository)
 
 #### Cancer Hotspots (Multiple Sources)
 - **Primary VCF**: `https://www.cancerhotspots.org/files/hotspots_v3_hg38.vcf.gz` (5MB)
@@ -49,10 +53,11 @@ This document records verified URLs and approaches for downloading knowledge bas
 - **Status**: ✅ Working
 
 #### Gene Mappings and Ontologies
-- **HGNC Mappings**: `https://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt` (5MB)
+- **HGNC Mappings**: `https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt` (5MB)
 - **OncoTree**: `http://oncotree.mskcc.org/api/tumorTypes/tree?version=oncotree_latest_stable` (1MB)
 - **Content**: Gene symbol standardization and disease classifications
-- **Status**: ✅ Working
+- **DOI**: `10.1093/nar/gkac888` (HGNC)
+- **Status**: ✅ Working (Updated: Google Storage location)
 
 ### Population Frequency Databases (20-150GB)
 
@@ -193,6 +198,36 @@ All knowledge bases are organized under `.refs/` with logical subdirectories:
 ├── pfam/             # Protein family annotations
 └── cancermine/       # Literature-mined cancer genes
 ```
+
+## Current Download Status (2025-06-15)
+
+### Successfully Downloaded (15/42)
+✅ **Clinical Evidence** - ClinVar VCF/TSV, CIViC variants/hotspots, OncoKB genes  
+✅ **Gene Mappings** - HGNC complete set, ClinGen curation  
+✅ **Literature Mining** - CancerMine collated data  
+✅ **OncoVI Resources** - Tumor suppressors, oncogenes, hotspots (9 files)  
+✅ **Drug Interactions** - DGIdb, UniProt Swiss-Prot  
+✅ **Disease Classifications** - OncoTree  
+
+### Failed Downloads Requiring Alternatives (4 attempts)
+
+#### Cancer Hotspots VCF Files
+- **Issue**: cancerhotspots.org does not provide direct VCF downloads
+- **Alternative**: Use MSK cBioPortal API or convert from TSV format
+- **Status**: ❌ Need alternative approach
+
+#### PCGR Biomarkers File  
+- **Issue**: Path `/pcgrdb/data/biomarkers.tsv` not found in PCGR repository
+- **Alternative**: Explore PCGR installation or alternative biomarker sources
+- **Status**: ❌ Need alternative approach
+
+#### Population Frequency Databases
+- **Issue**: Not yet attempted (large file sizes require user confirmation)
+- **Status**: ⏳ Pending user selection
+
+#### Additional Specialized Files
+- **Issue**: Some URLs need verification (TCGA, Open Targets timeouts)
+- **Status**: ⏳ Pending retry
 
 ## Deprecated/Removed Knowledge Bases
 

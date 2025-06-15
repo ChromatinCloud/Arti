@@ -40,7 +40,7 @@ poetry run python cli.py example.vcf --cancer-type lung --out example.json
 
 ## Comprehensive Knowledge Base System
 
-Our annotation engine integrates **42 curated knowledge bases** covering all major clinical genomics resources. Each knowledge base serves specific clinical classification frameworks:
+Our annotation engine integrates **42 curated knowledge bases** covering all major clinical genomics resources. **Current Status: 15/42 successfully downloaded (1.1GB)** Each knowledge base serves specific clinical classification frameworks:
 
 ### Clinical Classification Frameworks Supported
 

@@ -43,13 +43,20 @@ log_error() {
 }
 
 # --- Knowledge Base Definitions ---
-# Each entry: URL|filename|description|size_estimate
+# Each entry: URL|filename|description|size_estimate|doi|checksum_method
 declare -A KNOWLEDGE_BASES
 
+# Create audit log file
+AUDIT_LOG="$REFS_DIR/download_audit.tsv"
+mkdir -p "$(dirname "$AUDIT_LOG")"
+if [[ ! -f "$AUDIT_LOG" ]]; then
+    echo -e "timestamp\tkb_key\tfilename\turl\tdescription\tfile_size_bytes\tchecksum_md5\tchecksum_sha256\tdoi\tversion\tstatus" > "$AUDIT_LOG"
+fi
+
 # Clinical Databases
-KNOWLEDGE_BASES[clinvar_vcf]="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_${ASSEMBLY}/clinvar.vcf.gz|clinvar.vcf.gz|ClinVar Clinical Significance VCF|200MB"
-KNOWLEDGE_BASES[clinvar_vcf_tbi]="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_${ASSEMBLY}/clinvar.vcf.gz.tbi|clinvar.vcf.gz.tbi|ClinVar VCF Index|1MB"
-KNOWLEDGE_BASES[clinvar_tsv]="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz|variant_summary.txt.gz|ClinVar Variant Summary TSV|150MB"
+KNOWLEDGE_BASES[clinvar_vcf]="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_${ASSEMBLY}/clinvar.vcf.gz|clinvar.vcf.gz|ClinVar Clinical Significance VCF|200MB|10.1093/nar/gkz972|server_provided"
+KNOWLEDGE_BASES[clinvar_vcf_tbi]="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_${ASSEMBLY}/clinvar.vcf.gz.tbi|clinvar.vcf.gz.tbi|ClinVar VCF Index|1MB|10.1093/nar/gkz972|server_provided"
+KNOWLEDGE_BASES[clinvar_tsv]="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz|variant_summary.txt.gz|ClinVar Variant Summary TSV|150MB|10.1093/nar/gkz972|server_provided"
 
 # Population Frequencies  
 KNOWLEDGE_BASES[gnomad_genomes]="gs://gcp-public-data--gnomad/release/4.1/vcf-${ASSEMBLY,,}/genomes/gnomad.genomes.v4.1.sites.${ASSEMBLY,,}.vcf.bgz|gnomad_genomes.vcf.bgz|gnomAD Genomes Population Frequencies|150GB"
@@ -74,7 +81,7 @@ KNOWLEDGE_BASES[uniprot_sprot]="https://ftp.uniprot.org/pub/databases/uniprot/cu
 KNOWLEDGE_BASES[pfam]="https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz|pfam_a.hmm.gz|Pfam Protein Families|100MB"
 
 # Literature-Mined Data
-KNOWLEDGE_BASES[cancermine]="http://bionlp.bcgsc.ca/cancermine/cancermine_collated.tsv|cancermine.tsv|CancerMine Literature Mining|20MB"
+KNOWLEDGE_BASES[cancermine]="https://zenodo.org/records/7689627/files/cancermine_collated.tsv?download=1|cancermine.tsv|CancerMine Literature Mining|20MB|10.1038/s41592-019-0422-y|manual_md5"
 
 # Clinical Evidence APIs (downloaded as static files)
 KNOWLEDGE_BASES[civic_variants]="https://civicdb.org/downloads/nightly/nightly-VariantSummaries.tsv|civic_variants.tsv|CIViC Clinical Evidence|5MB"
@@ -84,8 +91,8 @@ KNOWLEDGE_BASES[oncokb_genes]="https://www.oncokb.org/api/v1/utils/allCuratedGen
 KNOWLEDGE_BASES[clinical_biomarkers]="https://raw.githubusercontent.com/sigven/pcgr/main/pcgrdb/data/biomarkers.tsv|biomarkers.tsv|Clinical Biomarkers and Thresholds|2MB"
 
 # Gene Mappings and Ontologies  
-KNOWLEDGE_BASES[gene_mappings]="https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz|gene_info.gz|NCBI Gene Information and Mappings|200MB"
-KNOWLEDGE_BASES[hgnc_mappings]="https://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt|hgnc_complete_set.txt|HGNC Gene Symbol Mappings|5MB"
+KNOWLEDGE_BASES[gene_mappings]="https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz|gene_info.gz|NCBI Gene Information and Mappings|200MB|10.1093/nar/gkac1057|server_provided"
+KNOWLEDGE_BASES[hgnc_mappings]="https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt|hgnc_complete_set.txt|HGNC Gene Symbol Mappings|5MB|10.1093/nar/gkac888|server_provided"
 
 # Disease Ontologies
 KNOWLEDGE_BASES[oncotree]="http://oncotree.mskcc.org/api/tumorTypes/tree?version=oncotree_latest_stable|oncotree.json|OncoTree Disease Classifications|1MB"
@@ -111,15 +118,15 @@ KNOWLEDGE_BASES[depmap_gene_effect]="https://depmap.org/portal/api/download/file
 # Compiled from: COSMIC Cancer Gene Census + OncoKB + ClinVar + cancerhotspots.org + UniProt
 # Processing: Python 3.8.8, VEP annotation, manual interpretation of oncogenicity criteria
 # Publication: https://doi.org/10.1101/2024.10.10.24315072
-KNOWLEDGE_BASES[oncovi_tsg]="https://github.com/MGCarta/oncovi/raw/main/data/bona_fide_tsg.txt|oncovi_tsg.txt|OncoVI Tumor Suppressor Genes (COSMIC+OncoKB union)|1KB"
-KNOWLEDGE_BASES[oncovi_oncogenes]="https://github.com/MGCarta/oncovi/raw/main/data/ogs_list.txt|oncovi_oncogenes.txt|OncoVI Oncogenes (COSMIC+OncoKB union)|1KB" 
-KNOWLEDGE_BASES[oncovi_hotspots]="https://github.com/MGCarta/oncovi/raw/main/data/single_residue_dict.txt|oncovi_hotspots.json|OncoVI Single Residue Hotspots (cancerhotspots.org processed)|5MB"
-KNOWLEDGE_BASES[oncovi_indel_hotspots]="https://github.com/MGCarta/oncovi/raw/main/data/inframe_indel_dict.txt|oncovi_indel_hotspots.json|OncoVI In-frame Indel Hotspots (cancerhotspots.org)|1MB"
-KNOWLEDGE_BASES[oncovi_domains]="https://github.com/MGCarta/oncovi/raw/main/data/domains_dictionary.txt|oncovi_domains.json|OncoVI Protein Domains (UniProt processed)|2MB"
-KNOWLEDGE_BASES[oncovi_cgi]="https://github.com/MGCarta/oncovi/raw/main/data/cgi_dictionary.txt|oncovi_cgi.json|OncoVI CGI Validated Mutations (Cancer Genome Interpreter)|3MB"
-KNOWLEDGE_BASES[oncovi_os2]="https://github.com/MGCarta/oncovi/raw/main/data/os2_manually_selected.txt|oncovi_os2.txt|OncoVI OS2 Clinical Significance (ClinVar curated)|1KB"
-KNOWLEDGE_BASES[oncovi_amino_dict]="https://github.com/MGCarta/oncovi/raw/main/data/amino_dict.txt|oncovi_amino_dict.txt|OncoVI Amino Acid Dictionary|1KB"
-KNOWLEDGE_BASES[oncovi_grantham]="https://github.com/MGCarta/oncovi/raw/main/data/grantham.tsv|oncovi_grantham.tsv|OncoVI Grantham Distance Matrix|5KB"
+KNOWLEDGE_BASES[oncovi_tsg]="https://github.com/MGCarta/oncovi/raw/main/resources/bona_fide_tsg.txt|oncovi_tsg.txt|OncoVI Tumor Suppressor Genes (COSMIC+OncoKB union)|1KB|10.1101/2024.10.10.24315072|server_provided"
+KNOWLEDGE_BASES[oncovi_oncogenes]="https://github.com/MGCarta/oncovi/raw/main/resources/ogs_list.txt|oncovi_oncogenes.txt|OncoVI Oncogenes (COSMIC+OncoKB union)|1KB|10.1101/2024.10.10.24315072|server_provided" 
+KNOWLEDGE_BASES[oncovi_hotspots]="https://github.com/MGCarta/oncovi/raw/main/resources/single_residue_dict.txt|oncovi_hotspots.json|OncoVI Single Residue Hotspots (cancerhotspots.org processed)|5MB|10.1101/2024.10.10.24315072|server_provided"
+KNOWLEDGE_BASES[oncovi_indel_hotspots]="https://github.com/MGCarta/oncovi/raw/main/resources/inframe_indel_dict.txt|oncovi_indel_hotspots.json|OncoVI In-frame Indel Hotspots (cancerhotspots.org)|1MB|10.1101/2024.10.10.24315072|server_provided"
+KNOWLEDGE_BASES[oncovi_domains]="https://github.com/MGCarta/oncovi/raw/main/resources/domains_dictionary.txt|oncovi_domains.json|OncoVI Protein Domains (UniProt processed)|2MB|10.1101/2024.10.10.24315072|server_provided"
+KNOWLEDGE_BASES[oncovi_cgi]="https://github.com/MGCarta/oncovi/raw/main/resources/cgi_dictionary.txt|oncovi_cgi.json|OncoVI CGI Validated Mutations (Cancer Genome Interpreter)|3MB|10.1101/2024.10.10.24315072|server_provided"
+KNOWLEDGE_BASES[oncovi_os2]="https://github.com/MGCarta/oncovi/raw/main/resources/os2_manually_selected.txt|oncovi_os2.txt|OncoVI OS2 Clinical Significance (ClinVar curated)|1KB|10.1101/2024.10.10.24315072|server_provided"
+KNOWLEDGE_BASES[oncovi_amino_dict]="https://github.com/MGCarta/oncovi/raw/main/resources/amino_dict.txt|oncovi_amino_dict.txt|OncoVI Amino Acid Dictionary|1KB|10.1101/2024.10.10.24315072|server_provided"
+KNOWLEDGE_BASES[oncovi_grantham]="https://github.com/MGCarta/oncovi/raw/main/resources/grantham.tsv|oncovi_grantham.tsv|OncoVI Grantham Distance Matrix|5KB|10.1101/2024.10.10.24315072|server_provided"
 
 # --- Download Function ---
 download_kb() {
@@ -131,7 +138,11 @@ download_kb() {
         return 1
     fi
     
-    IFS='|' read -r url filename description size_estimate <<< "${KNOWLEDGE_BASES[$kb_key]}"
+    IFS='|' read -r url filename description size_estimate doi checksum_method <<< "${KNOWLEDGE_BASES[$kb_key]}"
+    
+    # Set defaults for older entries without DOI/checksum
+    doi=${doi:-"N/A"}
+    checksum_method=${checksum_method:-"manual_md5"}
     
     # Determine target directory based on category
     local target_dir=""
@@ -209,11 +220,38 @@ download_kb() {
         fi
     fi
     
-    # Verify download
+    # Verify download and calculate checksums
     if [[ -f "$target_file" && -s "$target_file" ]]; then
         local file_size=$(stat -f%z "$target_file" 2>/dev/null || stat -c%s "$target_file" 2>/dev/null || echo "0")
-        log_success "Verified: $description ($((file_size / 1024 / 1024)) MB)"
+        
+        # Calculate checksums
+        local md5_checksum="N/A"
+        local sha256_checksum="N/A"
+        
+        if command -v md5sum &> /dev/null; then
+            md5_checksum=$(md5sum "$target_file" | cut -d' ' -f1)
+        elif command -v md5 &> /dev/null; then
+            md5_checksum=$(md5 -q "$target_file")
+        fi
+        
+        if command -v sha256sum &> /dev/null; then
+            sha256_checksum=$(sha256sum "$target_file" | cut -d' ' -f1)
+        elif command -v shasum &> /dev/null; then
+            sha256_checksum=$(shasum -a 256 "$target_file" | cut -d' ' -f1)
+        fi
+        
+        # Log to audit file
+        local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        local version=$(date +"%Y-%m-%d")
+        echo -e "$timestamp\t$kb_key\t$filename\t$url\t$description\t$file_size\t$md5_checksum\t$sha256_checksum\t$doi\t$version\tsuccess" >> "$AUDIT_LOG"
+        
+        log_success "Verified: $description ($((file_size / 1024 / 1024)) MB) MD5: ${md5_checksum:0:8}..."
     else
+        # Log failure to audit file
+        local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        local version=$(date +"%Y-%m-%d")
+        echo -e "$timestamp\t$kb_key\t$filename\t$url\t$description\t0\tN/A\tN/A\t$doi\t$version\tfailed" >> "$AUDIT_LOG"
+        
         log_error "Download verification failed: $description"
         return 1
     fi
