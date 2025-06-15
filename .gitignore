@@ -16,3 +16,14 @@ build/
 
 KBs/*
 
+# Reference data downloads - keep directory structure but ignore data files
+.refs/**/*
+!.refs/
+!.refs/*/
+!.refs/*/.gitkeep
+
+# Internal institution-specific files - keep structure but ignore data
+internal/**/*
+!internal/
+!internal/.gitkeep
+

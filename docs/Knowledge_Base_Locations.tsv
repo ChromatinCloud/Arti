@@ -1,0 +1,18 @@
+### **Resource Acquisition Plan for a Clinical Annotation Pipeline**
+
+| Resource | VEP Plugin? | Separate Download Required? | Bulk Query API Available? | Where to Get This Resource (Best Practice) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Ensembl VEP** | (Core Software) | Yes | Yes (Rate-Limited) | **Software Install:** Clone the repository via `git clone` and run the `INSTALL.pl` script. |
+| **dbNSFP** | **Yes** | Yes | No | **VEP Plugin:** Download the data file manually from its website and configure the plugin. |
+| **AlphaMissense**| **Yes** | Yes | No | **VEP Plugin:** Download the VCF/TSV files via `wget` and configure the plugin. |
+| **SpliceAI** | **Yes** | Yes | No | **VEP Plugin:** Download the VCFs via `wget` and configure the plugin. |
+| **gnomAD** | No | **Yes** | No (Lookup only) | **Cloud Flatfile:** Download VCFs from the AWS/GCP public bucket via `aws s3` or `gsutil`. |
+| **ClinVar** | No | **Yes** | Yes (Rate-Limited) | **FTP Flatfile:** Download the VCF from the NCBI FTP site via `wget` or `curl`. |
+| **OncoKB** | No | **Yes** | **Yes (Licensed)** | **API:** Use the commercially licensed, high-performance API for pipeline integration. |
+| **COSMIC** | No | **Yes** | **Yes (Licensed)** | **API or Licensed Flatfile:** Use the licensed API or download files from the licensed user portal. |
+| **Cancer Hotspots** | No | **Yes** | No | **Flatfile:** Download the BED file from `cancerhotspots.org` via `wget`. |
+| **CIViC** | No | **Yes** | Yes (Public) | **Flatfile:** Download the nightly VCF build for robust local annotation. |
+| **ClinGen** | No | **Yes** | Yes (Service APIs) | **Flatfile:** Download curated gene/region lists from the ClinGen website/FTP. |
+| **TCGA / ICGC** | No | Yes | Yes (Portal APIs) | **Data Portal:** Access via specialized portals (e.g., GDC) with their data transfer tools. |
+| **DrugBank** | No | Yes | Yes | **Flatfile:** Download the full XML database for local parsing and integration. |
+| **Reactome / KEGG** | No | Yes | Yes | **Flatfile:** Download pathway definition files (GMT, KGML) for local enrichment analysis. |
