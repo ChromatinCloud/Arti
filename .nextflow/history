@@ -1,3 +1,0 @@
-2025-06-15 01:56:51	1.3s	angry_mcclintock	ERR	bd12300d4562906e701b1857bd5e5856	4ea2a0b9-aa49-42c3-8977-51012f930ab4	nextflow run workflows/test.nf
-2025-06-15 01:57:10	908ms	high_hypatia	ERR	61ed550e1f3d8a92d23512fd525ed51d	78cfec0c-820b-4c92-b639-f8227fdd805c	nextflow run workflows/test.nf
-2025-06-15 01:57:26	1.7s	exotic_ride	OK	fb5ea856cdf93a4f7a4e9c34772e0e69	a0d9003d-21b0-4b44-8cbc-6393f374aaf3	nextflow run workflows/simple_test.nf
