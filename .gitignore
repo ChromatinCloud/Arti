@@ -46,6 +46,7 @@ wheel/
 .env/
 .env.*
 .envrc
+env/
 
 # IPython/Jupyter
 .ipynb_checkpoints

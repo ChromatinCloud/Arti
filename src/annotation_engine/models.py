@@ -79,7 +79,7 @@ class Evidence(BaseModel):
     """Evidence item supporting variant classification"""
     code: str = Field(..., description="Evidence code (e.g., OVS1, OS1, OM1)")
     score: int = Field(..., description="Numeric score for this evidence")
-    guideline: Literal["AMP_2017", "VICC_2022", "OncoKB"] = Field(..., description="Source guideline")
+    guideline: Literal["AMP_2017", "VICC_2022", "VICC_2022_ENHANCED", "OncoKB"] = Field(..., description="Source guideline")
     source_kb: str = Field(..., description="Knowledge base source (e.g., OncoKB, CIViC)")
     description: str = Field(..., description="Human-readable evidence description")
     data: Dict[str, Any] = Field(default_factory=dict, description="Supporting data")
