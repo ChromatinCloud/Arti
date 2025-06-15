@@ -1,0 +1,23 @@
+# Minimal test Docker image
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install minimal dependencies  
+RUN pip install poetry==1.8.3
+
+# Copy only essential files
+COPY pyproject.toml ./
+COPY src/ ./src/
+
+# Install Python dependencies only
+RUN poetry config virtualenvs.create false && \
+    poetry install --only=main --no-dev
+
+# Set environment
+ENV PYTHONPATH="/app/src:$PYTHONPATH"
+
+# Test the installation
+RUN python -c "import annotation_engine; print('✅ Annotation Engine ready')"
+
+CMD ["python", "-m", "annotation_engine", "--help"]

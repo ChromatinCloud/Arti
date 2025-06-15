@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  annotation-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: annotation-engine
+    volumes:
+      # Mount local data directories
+      - ./data:/app/data
+      - ./results:/app/results
+      - ./.refs:/app/.refs
+      # Mount for development (optional)
+      - ./src:/app/src:ro
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-key.json
+      - PYTHONPATH=/app/src
+    ports:
+      - "8000:8000"
+    command: ["python", "-m", "annotation_engine", "--api-mode"]
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15
+    container_name: annotation-postgres
+    environment:
+      POSTGRES_DB: annotation_engine
+      POSTGRES_USER: annotator
+      POSTGRES_PASSWORD: genomics_secure_2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: annotation-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+
+  # VEP container for variant annotation
+  vep:
+    image: ensemblorg/ensembl-vep:latest
+    container_name: annotation-vep
+    volumes:
+      - ./data:/data
+      - ./.refs:/refs
+    command: ["tail", "-f", "/dev/null"]  # Keep running for on-demand use
+
+  # Optional: Jupyter for analysis
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: annotation-jupyter
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data
+      - ./.refs:/app/.refs
+    ports:
+      - "8888:8888"
+    command: ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+
+volumes:
+  postgres_data:
+  redis_data:

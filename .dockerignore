@@ -1,0 +1,44 @@
+# Large data directories (49GB+)
+.refs/
+data/
+results/
+
+# Build artifacts and caches
+.venv/
+.git/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.cache
+.coverage
+.tox
+
+# Nextflow
+.nextflow/
+.nextflow.log*
+work/
+
+# Documentation and tests
+*.md
+docs/
+tests/
+example_input/
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Development
+setup_env.sh
+scripts/
+workflows/
+
+# Poetry
+poetry.lock

@@ -1,0 +1,13 @@
+🔧 Testing Nextflow Environment
+================================
+Java version:
+openjdk 17.0.15 2025-04-15
+OpenJDK Runtime Environment Homebrew (build 17.0.15+0)
+OpenJDK 64-Bit Server VM Homebrew (build 17.0.15+0, mixed mode, sharing)
+
+Python version:
+Python 3.13.0
+
+Working directory: /Users/lauferva/Desktop/Arti/work/0b/7a9809af2cba5bd96c6cc3f8ea55fb
+
+✅ Nextflow environment working!

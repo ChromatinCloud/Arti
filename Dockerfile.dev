@@ -1,0 +1,43 @@
+# Development Docker Image for Annotation Engine
+# Faster builds, includes development tools
+
+FROM python:3.11-slim
+
+# Install essential system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Java 17 for Nextflow (minimal)
+RUN apt-get update && apt-get install -y openjdk-17-jdk-headless && rm -rf /var/lib/apt/lists/*
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH=$JAVA_HOME/bin:$PATH
+
+# Install Poetry
+RUN pip install poetry==1.8.3
+ENV POETRY_NO_INTERACTION=1
+
+# Install Nextflow
+RUN curl -s https://get.nextflow.io | bash && \
+    mv nextflow /usr/local/bin/ && \
+    chmod +x /usr/local/bin/nextflow
+
+WORKDIR /app
+
+# Copy and install dependencies
+COPY pyproject.toml poetry.lock ./
+RUN poetry config virtualenvs.create false && poetry install
+
+# Copy source code
+COPY . .
+
+# Set environment
+ENV PYTHONPATH="/app/src:$PYTHONPATH"
+
+# Default command for development
+CMD ["python", "-m", "annotation_engine", "--help"]

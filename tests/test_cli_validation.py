@@ -11,10 +11,10 @@ import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from src.annotation_engine.cli import AnnotationEngineCLI
-from src.annotation_engine.validation.input_schemas import CLIInputSchema, AnalysisRequest
-from src.annotation_engine.validation.vcf_validator import VCFValidator
-from src.annotation_engine.validation.error_handler import ValidationError
+from annotation_engine.cli import AnnotationEngineCLI
+from annotation_engine.validation.input_schemas import CLIInputSchema, AnalysisRequest
+from annotation_engine.validation.vcf_validator import VCFValidator
+from annotation_engine.validation.error_handler import ValidationError
 
 
 class TestCLIArgumentParsing:

@@ -1,0 +1,97 @@
+Jun-15 01:56:51.010 [main] DEBUG nextflow.cli.Launcher - $> nextflow run workflows/test.nf
+Jun-15 01:56:51.044 [main] DEBUG nextflow.cli.CmdRun - N E X T F L O W  ~  version 25.04.3
+Jun-15 01:56:51.071 [main] DEBUG nextflow.plugin.PluginsFacade - Setting up plugin manager > mode=prod; embedded=false; plugins-dir=/Users/lauferva/.nextflow/plugins; core-plugins: nf-amazon@2.15.0,nf-azure@1.16.0,nf-cloudcache@0.4.3,nf-codecommit@0.2.3,nf-console@1.2.1,nf-google@1.21.0,nf-k8s@1.0.0,nf-tower@1.11.3,nf-wave@1.12.1
+Jun-15 01:56:51.082 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
+Jun-15 01:56:51.083 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
+Jun-15 01:56:51.085 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.12.0 in 'deployment' mode
+Jun-15 01:56:51.090 [main] INFO  org.pf4j.AbstractPluginManager - No plugins
+Jun-15 01:56:51.126 [main] DEBUG nextflow.cli.CmdRun - Applied DSL=2 from script declaration
+Jun-15 01:56:51.135 [main] DEBUG nextflow.cli.CmdRun - Launching `workflows/test.nf` [angry_mcclintock] DSL2 - revision: bd12300d45
+Jun-15 01:56:51.136 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins default=[]
+Jun-15 01:56:51.136 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins resolved requirement=[]
+Jun-15 01:56:51.168 [main] DEBUG nextflow.Session - Session UUID: 4ea2a0b9-aa49-42c3-8977-51012f930ab4
+Jun-15 01:56:51.169 [main] DEBUG nextflow.Session - Run name: angry_mcclintock
+Jun-15 01:56:51.169 [main] DEBUG nextflow.Session - Executor pool size: 12
+Jun-15 01:56:51.173 [main] DEBUG nextflow.file.FilePorter - File porter settings maxRetries=3; maxTransfers=50; pollTimeout=null
+Jun-15 01:56:51.176 [main] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'FileTransfer' minSize=10; maxSize=36; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+Jun-15 01:56:51.189 [main] DEBUG nextflow.cli.CmdRun - 
+  Version: 25.04.3 build 5949
+  Created: 02-06-2025 20:56 UTC (16:56 EDT)
+  System: Mac OS X 15.4.1
+  Runtime: Groovy 4.0.26 on OpenJDK 64-Bit Server VM 17.0.15+0
+  Encoding: UTF-8 (UTF-8)
+  Process: 13195@LauferVAs-MacBook-Pro-2.local [192.168.1.64]
+  CPUs: 12 - Mem: 96 GB (77.7 MB) - Swap: 0 (0)
+Jun-15 01:56:51.198 [main] DEBUG nextflow.Session - Work-dir: /Users/lauferva/Desktop/Arti/work [Mac OS X]
+Jun-15 01:56:51.199 [main] DEBUG nextflow.Session - Script base path does not exist or is not a directory: /Users/lauferva/Desktop/Arti/workflows/bin
+Jun-15 01:56:51.209 [main] DEBUG nextflow.executor.ExecutorFactory - Extension executors providers=[]
+Jun-15 01:56:51.214 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
+Jun-15 01:56:51.218 [main] DEBUG nextflow.Session - Observer factory (v2): LinObserverFactory
+Jun-15 01:56:51.231 [main] DEBUG nextflow.cache.CacheFactory - Using Nextflow cache factory: nextflow.cache.DefaultCacheFactory
+Jun-15 01:56:51.243 [main] DEBUG nextflow.util.CustomThreadPool - Creating default thread pool > poolSize: 13; maxThreads: 1000
+Jun-15 01:56:51.273 [main] DEBUG nextflow.Session - Session start
+Jun-15 01:56:51.518 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
+Jun-15 01:56:51.526 [main] DEBUG n.secret.LocalSecretsProvider - Secrets store: /Users/lauferva/.nextflow/secrets/store.json
+Jun-15 01:56:51.530 [main] DEBUG nextflow.secret.SecretsLoader - Discovered secrets providers: [nextflow.secret.LocalSecretsProvider@4997552e] - activable => nextflow.secret.LocalSecretsProvider@4997552e
+Jun-15 01:56:51.585 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: null
+Jun-15 01:56:51.585 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+Jun-15 01:56:51.588 [main] DEBUG nextflow.executor.Executor - [warm up] executor > local
+Jun-15 01:56:51.591 [main] DEBUG n.processor.LocalPollingMonitor - Creating local task monitor for executor 'local' > cpus=12; memory=96 GB; capacity=12; pollInterval=100ms; dumpInterval=5m
+Jun-15 01:56:51.593 [main] DEBUG n.processor.TaskPollingMonitor - >>> barrier register (monitor: local)
+Jun-15 01:56:51.612 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'VALIDATE_VCF': maxForks=0; fair=false; array=0
+Jun-15 01:56:51.636 [main] DEBUG nextflow.Session - Workflow process names [dsl2]: VALIDATE_VCF
+Jun-15 01:56:51.637 [main] DEBUG nextflow.Session - Igniting dataflow network (2)
+Jun-15 01:56:51.640 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > VALIDATE_VCF
+Jun-15 01:56:51.640 [main] DEBUG nextflow.script.ScriptRunner - Parsed script files:
+  Script_b5e3f1af4f1d02cc: /Users/lauferva/Desktop/Arti/workflows/test.nf
+Jun-15 01:56:51.640 [main] DEBUG nextflow.script.ScriptRunner - > Awaiting termination 
+Jun-15 01:56:51.641 [main] DEBUG nextflow.Session - Session await
+Jun-15 01:56:51.687 [Actor Thread 3] DEBUG nextflow.util.HashBuilder - Unable to get file attributes file: /Users/lauferva/Desktop/Arti/workflows/example_input/proper_test.vcf -- Cause: java.nio.file.NoSuchFileException: /Users/lauferva/Desktop/Arti/workflows/example_input/proper_test.vcf
+Jun-15 01:56:51.732 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+Jun-15 01:56:51.739 [Task submitter] INFO  nextflow.Session - [69/2f1951] Submitted process > VALIDATE_VCF (1)
+Jun-15 01:56:52.083 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 1; name: VALIDATE_VCF (1); status: COMPLETED; exit: 1; error: -; workDir: /Users/lauferva/Desktop/Arti/work/69/2f1951eec006c37118ad03ec8be289]
+Jun-15 01:56:52.083 [Task monitor] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'TaskFinalizer' minSize=10; maxSize=36; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+Jun-15 01:56:52.090 [TaskFinalizer-1] DEBUG nextflow.processor.TaskProcessor - Handling unexpected condition for
+  task: name=VALIDATE_VCF (1); work-dir=/Users/lauferva/Desktop/Arti/work/69/2f1951eec006c37118ad03ec8be289
+  error [nextflow.exception.ProcessFailedException]: Process `VALIDATE_VCF (1)` terminated with an error exit status (1)
+Jun-15 01:56:52.099 [TaskFinalizer-1] ERROR nextflow.processor.TaskProcessor - Error executing process > 'VALIDATE_VCF (1)'
+
+Caused by:
+  Process `VALIDATE_VCF (1)` terminated with an error exit status (1)
+
+
+Command executed:
+
+  cd /Users/lauferva/Desktop/Arti/workflows
+  export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+  export PATH="$JAVA_HOME/bin:$PATH"
+  
+  echo "Testing VCF validation with Nextflow..."
+  poetry run python -m src.annotation_engine \
+      --input proper_test.vcf \
+      --case-uid NF_TEST_001 \
+      --cancer-type lung_adenocarcinoma \
+      --dry-run
+  echo "✅ Nextflow + Annotation Engine integration working!"
+
+Command exit status:
+  1
+
+Command output:
+  Testing VCF validation with Nextflow...
+
+Command error:
+  Testing VCF validation with Nextflow...
+  /Users/lauferva/Desktop/Arti/.venv/bin/python: Error while finding module specification for 'src.annotation_engine' (ModuleNotFoundError: No module named 'src')
+
+Work dir:
+  /Users/lauferva/Desktop/Arti/work/69/2f1951eec006c37118ad03ec8be289
+
+Tip: you can try to figure out what's wrong by changing to the process work dir and showing the script file named `.command.sh`
+Jun-15 01:56:52.103 [main] DEBUG nextflow.Session - Session await > all processes finished
+Jun-15 01:56:52.103 [TaskFinalizer-1] DEBUG nextflow.Session - Session aborted -- Cause: Process `VALIDATE_VCF (1)` terminated with an error exit status (1)
+Jun-15 01:56:52.112 [main] DEBUG nextflow.Session - Session await > all barriers passed
+Jun-15 01:56:52.112 [Task monitor] DEBUG n.processor.TaskPollingMonitor - <<< barrier arrives (monitor: local) - terminating tasks monitor poll loop
+Jun-15 01:56:52.121 [main] DEBUG n.trace.WorkflowStatsObserver - Workflow completed > WorkflowStats[succeededCount=0; failedCount=1; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=0; abortedCount=0; succeedDuration=0ms; failedDuration=275ms; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=1; peakCpus=1; peakMemory=0; ]
+Jun-15 01:56:52.313 [main] DEBUG nextflow.cache.CacheDB - Closing CacheDB done
+Jun-15 01:56:52.321 [main] DEBUG nextflow.script.ScriptRunner - > Execution complete -- Goodbye

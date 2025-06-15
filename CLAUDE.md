@@ -31,8 +31,18 @@ Annotation-Engine is a reproducible CLI that ingests a tumor-only or matched-pai
 
 ### Environment Setup
 ```bash
+# Install dependencies
 pipx install poetry  # or /opt/homebrew/bin/brew install poetry
-poetry install --no-root
+brew install openjdk@17  # For Nextflow
+poetry install
+
+# Setup Java for Nextflow
+export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+export PATH="$JAVA_HOME/bin:$PATH"
+export PATH="$HOME/bin:$PATH"
+
+# Or run the setup script
+./setup_env.sh
 ```
 
 ### Running Tests

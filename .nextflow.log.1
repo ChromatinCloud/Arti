@@ -1,0 +1,114 @@
+Jun-15 01:57:09.892 [main] DEBUG nextflow.cli.Launcher - $> nextflow run workflows/test.nf
+Jun-15 01:57:09.938 [main] DEBUG nextflow.cli.CmdRun - N E X T F L O W  ~  version 25.04.3
+Jun-15 01:57:09.950 [main] DEBUG nextflow.plugin.PluginsFacade - Setting up plugin manager > mode=prod; embedded=false; plugins-dir=/Users/lauferva/.nextflow/plugins; core-plugins: nf-amazon@2.15.0,nf-azure@1.16.0,nf-cloudcache@0.4.3,nf-codecommit@0.2.3,nf-console@1.2.1,nf-google@1.21.0,nf-k8s@1.0.0,nf-tower@1.11.3,nf-wave@1.12.1
+Jun-15 01:57:09.965 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
+Jun-15 01:57:09.966 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
+Jun-15 01:57:09.967 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.12.0 in 'deployment' mode
+Jun-15 01:57:09.973 [main] INFO  org.pf4j.AbstractPluginManager - No plugins
+Jun-15 01:57:10.008 [main] DEBUG nextflow.cli.CmdRun - Applied DSL=2 from script declaration
+Jun-15 01:57:10.016 [main] DEBUG nextflow.cli.CmdRun - Launching `workflows/test.nf` [high_hypatia] DSL2 - revision: 61ed550e1f
+Jun-15 01:57:10.017 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins default=[]
+Jun-15 01:57:10.017 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins resolved requirement=[]
+Jun-15 01:57:10.047 [main] DEBUG nextflow.Session - Session UUID: 78cfec0c-820b-4c92-b639-f8227fdd805c
+Jun-15 01:57:10.048 [main] DEBUG nextflow.Session - Run name: high_hypatia
+Jun-15 01:57:10.048 [main] DEBUG nextflow.Session - Executor pool size: 12
+Jun-15 01:57:10.052 [main] DEBUG nextflow.file.FilePorter - File porter settings maxRetries=3; maxTransfers=50; pollTimeout=null
+Jun-15 01:57:10.055 [main] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'FileTransfer' minSize=10; maxSize=36; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+Jun-15 01:57:10.069 [main] DEBUG nextflow.cli.CmdRun - 
+  Version: 25.04.3 build 5949
+  Created: 02-06-2025 20:56 UTC (16:56 EDT)
+  System: Mac OS X 15.4.1
+  Runtime: Groovy 4.0.26 on OpenJDK 64-Bit Server VM 17.0.15+0
+  Encoding: UTF-8 (UTF-8)
+  Process: 13268@LauferVAs-MacBook-Pro-2.local [192.168.1.64]
+  CPUs: 12 - Mem: 96 GB (279 MB) - Swap: 0 (0)
+Jun-15 01:57:10.077 [main] DEBUG nextflow.Session - Work-dir: /Users/lauferva/Desktop/Arti/work [Mac OS X]
+Jun-15 01:57:10.077 [main] DEBUG nextflow.Session - Script base path does not exist or is not a directory: /Users/lauferva/Desktop/Arti/workflows/bin
+Jun-15 01:57:10.085 [main] DEBUG nextflow.executor.ExecutorFactory - Extension executors providers=[]
+Jun-15 01:57:10.090 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
+Jun-15 01:57:10.093 [main] DEBUG nextflow.Session - Observer factory (v2): LinObserverFactory
+Jun-15 01:57:10.111 [main] DEBUG nextflow.cache.CacheFactory - Using Nextflow cache factory: nextflow.cache.DefaultCacheFactory
+Jun-15 01:57:10.115 [main] DEBUG nextflow.util.CustomThreadPool - Creating default thread pool > poolSize: 13; maxThreads: 1000
+Jun-15 01:57:10.146 [main] DEBUG nextflow.Session - Session start
+Jun-15 01:57:10.409 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
+Jun-15 01:57:10.417 [main] DEBUG n.secret.LocalSecretsProvider - Secrets store: /Users/lauferva/.nextflow/secrets/store.json
+Jun-15 01:57:10.421 [main] DEBUG nextflow.secret.SecretsLoader - Discovered secrets providers: [nextflow.secret.LocalSecretsProvider@101ca8da] - activable => nextflow.secret.LocalSecretsProvider@101ca8da
+Jun-15 01:57:10.480 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: null
+Jun-15 01:57:10.481 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+Jun-15 01:57:10.483 [main] DEBUG nextflow.executor.Executor - [warm up] executor > local
+Jun-15 01:57:10.486 [main] DEBUG n.processor.LocalPollingMonitor - Creating local task monitor for executor 'local' > cpus=12; memory=96 GB; capacity=12; pollInterval=100ms; dumpInterval=5m
+Jun-15 01:57:10.488 [main] DEBUG n.processor.TaskPollingMonitor - >>> barrier register (monitor: local)
+Jun-15 01:57:10.508 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'VALIDATE_VCF': maxForks=0; fair=false; array=0
+Jun-15 01:57:10.535 [main] DEBUG nextflow.Session - Workflow process names [dsl2]: VALIDATE_VCF
+Jun-15 01:57:10.536 [main] DEBUG nextflow.Session - Igniting dataflow network (2)
+Jun-15 01:57:10.540 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > VALIDATE_VCF
+Jun-15 01:57:10.540 [main] DEBUG nextflow.script.ScriptRunner - Parsed script files:
+  Script_19d1c34583ee1fdf: /Users/lauferva/Desktop/Arti/workflows/test.nf
+Jun-15 01:57:10.540 [main] DEBUG nextflow.script.ScriptRunner - > Awaiting termination 
+Jun-15 01:57:10.540 [main] DEBUG nextflow.Session - Session await
+Jun-15 01:57:10.591 [Actor Thread 3] DEBUG nextflow.util.HashBuilder - Unable to get file attributes file: /Users/lauferva/Desktop/Arti/workflows/example_input/proper_test.vcf -- Cause: java.nio.file.NoSuchFileException: /Users/lauferva/Desktop/Arti/workflows/example_input/proper_test.vcf
+Jun-15 01:57:10.644 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+Jun-15 01:57:10.645 [Task submitter] INFO  nextflow.Session - [33/8f26bc] Submitted process > VALIDATE_VCF (1)
+Jun-15 01:57:10.677 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 1; name: VALIDATE_VCF (1); status: COMPLETED; exit: 1; error: -; workDir: /Users/lauferva/Desktop/Arti/work/33/8f26bc4f9bd1d8df7625a78bf381e1]
+Jun-15 01:57:10.678 [Task monitor] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'TaskFinalizer' minSize=10; maxSize=36; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+Jun-15 01:57:10.682 [TaskFinalizer-1] DEBUG nextflow.processor.TaskProcessor - Handling unexpected condition for
+  task: name=VALIDATE_VCF (1); work-dir=/Users/lauferva/Desktop/Arti/work/33/8f26bc4f9bd1d8df7625a78bf381e1
+  error [nextflow.exception.ProcessFailedException]: Process `VALIDATE_VCF (1)` terminated with an error exit status (1)
+Jun-15 01:57:10.693 [TaskFinalizer-1] ERROR nextflow.processor.TaskProcessor - Error executing process > 'VALIDATE_VCF (1)'
+
+Caused by:
+  Process `VALIDATE_VCF (1)` terminated with an error exit status (1)
+
+
+Command executed:
+
+  export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+  export PATH="$JAVA_HOME/bin:$PATH"
+  
+  echo "Testing VCF validation with Nextflow..."
+  echo "Working directory: $(pwd)"
+  echo "VCF file: proper_test.vcf"
+  echo "Project directory: /Users/lauferva/Desktop/Arti/workflows"
+  
+  cd /Users/lauferva/Desktop/Arti/workflows
+  echo "Changed to project directory: $(pwd)"
+  
+  # Test that our CLI works from project root
+  export PYTHONPATH="/Users/lauferva/Desktop/Arti/workflows/src:$PYTHONPATH"
+  poetry run python -c "import sys; print('Python path:', sys.path)"
+  poetry run python -m annotation_engine \
+      --input proper_test.vcf \
+      --case-uid NF_TEST_001 \
+      --cancer-type lung_adenocarcinoma \
+      --dry-run
+  echo "✅ Nextflow + Annotation Engine integration working!"
+
+Command exit status:
+  1
+
+Command output:
+  Testing VCF validation with Nextflow...
+  Working directory: /Users/lauferva/Desktop/Arti/work/33/8f26bc4f9bd1d8df7625a78bf381e1
+  VCF file: proper_test.vcf
+  Project directory: /Users/lauferva/Desktop/Arti/workflows
+  Changed to project directory: /Users/lauferva/Desktop/Arti/workflows
+
+Command error:
+  Testing VCF validation with Nextflow...
+  Working directory: /Users/lauferva/Desktop/Arti/work/33/8f26bc4f9bd1d8df7625a78bf381e1
+  VCF file: proper_test.vcf
+  Project directory: /Users/lauferva/Desktop/Arti/workflows
+  Changed to project directory: /Users/lauferva/Desktop/Arti/workflows
+  .command.sh: line 14: PYTHONPATH: unbound variable
+
+Work dir:
+  /Users/lauferva/Desktop/Arti/work/33/8f26bc4f9bd1d8df7625a78bf381e1
+
+Tip: when you have fixed the problem you can continue the execution adding the option `-resume` to the run command line
+Jun-15 01:57:10.696 [TaskFinalizer-1] DEBUG nextflow.Session - Session aborted -- Cause: Process `VALIDATE_VCF (1)` terminated with an error exit status (1)
+Jun-15 01:57:10.697 [main] DEBUG nextflow.Session - Session await > all processes finished
+Jun-15 01:57:10.706 [main] DEBUG nextflow.Session - Session await > all barriers passed
+Jun-15 01:57:10.706 [Task monitor] DEBUG n.processor.TaskPollingMonitor - <<< barrier arrives (monitor: local) - terminating tasks monitor poll loop
+Jun-15 01:57:10.717 [main] DEBUG n.trace.WorkflowStatsObserver - Workflow completed > WorkflowStats[succeededCount=0; failedCount=1; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=0; abortedCount=0; succeedDuration=0ms; failedDuration=12ms; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=1; peakCpus=1; peakMemory=0; ]
+Jun-15 01:57:10.906 [main] DEBUG nextflow.cache.CacheDB - Closing CacheDB done
+Jun-15 01:57:10.913 [main] DEBUG nextflow.script.ScriptRunner - > Execution complete -- Goodbye

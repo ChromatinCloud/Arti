@@ -2,7 +2,7 @@
 name = "annotation-engine"
 version = "0.0.1"
 description = "Minimal AMP/CGC/OncoKB annotation starter"
-authors = ["<YOUR NAME> <you@example.com>"]
+authors = ["Annotation Engine <annotation@genomics.com>"]
 packages = [{ include = "annotation_engine", from = "src" }]
 
 [tool.poetry.dependencies]
@@ -16,7 +16,6 @@ uvicorn = "^0.24"
 pyyaml = "^6.0"
 httpx = "^0.25"
 pysam = "^0.22"
-cyvcf2 = "^0.30"
 vcfpy = "^0.13"
 
 [tool.poetry.group.dev.dependencies]

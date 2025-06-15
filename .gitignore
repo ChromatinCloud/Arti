@@ -8,6 +8,10 @@
 .Rhistory
 *.log
 
+
+work/
+.nextflow/
+
 # Editor-specific files
 .idea/
 .vscode/
