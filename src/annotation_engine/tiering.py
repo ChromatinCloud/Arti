@@ -12,9 +12,10 @@ Key responsibilities:
 5. Provide confidence scoring and completeness metrics
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from .models import (
     Evidence, TierResult, VICCScoring, AMPScoring, OncoKBScoring,

@@ -50,10 +50,69 @@ Our annotation engine integrates **42 curated knowledge bases** covering all maj
 
 ### Clinical Classification Frameworks Supported
 
-1. **AMP/ASCO/CAP Guidelines** (2017) - Somatic variant therapeutic actionability (Tiers I-IV)
-2. **ClinGen/CGC/VICC Guidelines** (2022) - Somatic oncogenicity assessment  
-3. **OncoKB Therapeutic Guidelines** - Clinical actionability tiers
-4. **Canned Text Types** - Nine standardized report components
+#### 1. **AMP/ASCO/CAP Guidelines (2017)** - Somatic Variant Therapeutic Actionability
+
+**Tier System with Sub-classifications:**
+- **Tier IA**: Strong Clinical Significance - FDA-approved therapies
+- **Tier IB**: Strong Clinical Significance - Professional guidelines
+- **Tier IIC**: Potential Clinical Significance - Clinical trials, case studies
+- **Tier IID**: Potential Clinical Significance - Preclinical evidence
+- **Tier IIE**: Investigational/Emerging Evidence - Novel findings
+- **Tier III**: Variants of Unknown Clinical Significance (VUS)
+- **Tier IV**: Benign or Likely Benign Variants
+
+**Evidence Strength Hierarchy:**
+- FDA-approved biomarkers → Tier IA
+- Professional society guidelines → Tier IB
+- Well-powered clinical studies → Tier IIC
+- Multiple case reports, preclinical → Tier IID
+- Emerging evidence, novel findings → Tier IIE
+
+#### 2. **VICC/CGC Guidelines (2022)** - Somatic Oncogenicity Assessment
+
+**Evidence Codes and Point System:**
+
+| Code | Points | Description | Example |
+|------|--------|-------------|---------|
+| **OVS1** | +8 | Null variant in tumor suppressor | Nonsense in TP53 |
+| **OS1** | +4 | Activating variant in oncogene | BRAF V600E |
+| **OS2** | +4 | Well-established in guidelines | Listed in NCCN |
+| **OS3** | +4 | Well-established hotspot | >50 samples in COSMIC |
+| **OM1** | +2 | Critical functional domain | Kinase domain mutation |
+| **OM2** | +2 | Functional studies support | In vitro oncogenic |
+| **OM3** | +2 | Moderate hotspot evidence | 10-50 samples |
+| **OM4** | +2 | In known cancer gene | COSMIC CGC gene |
+| **OP1** | +1 | Computational prediction | CADD > 20 |
+| **OP2** | +1 | Somatic in multiple tumors | Seen in TCGA |
+| **OP3** | +1 | In hotspot region | Within 10aa of hotspot |
+| **OP4** | +1 | Absent from population DBs | Not in gnomAD |
+| **SBVS1** | -8 | High population frequency | AF > 1% in gnomAD |
+| **SBS1** | -4 | Silent with no impact | Synonymous variant |
+| **SBS2** | -4 | Functional studies benign | No oncogenic activity |
+| **SBP1** | -1 | Computational benign | REVEL < 0.5 |
+
+**Classification Thresholds:**
+- **Oncogenic**: Total score ≥ 7
+- **Likely Oncogenic**: Total score 4-6
+- **Uncertain Significance**: Total score 0-3
+- **Likely Benign**: Total score -1 to -3
+- **Benign**: Total score ≤ -4
+
+#### 3. **OncoKB Therapeutic Guidelines** - Clinical Actionability
+
+**Evidence Levels:**
+- **Level 1**: FDA-recognized biomarker
+- **Level 2A**: Standard care biomarker
+- **Level 2B**: Standard care in different indication
+- **Level 3A**: Compelling clinical evidence
+- **Level 3B**: Clinical evidence in different indication
+- **Level 4**: Compelling biological evidence
+- **Level R1**: Standard care resistance
+- **Level R2**: Compelling clinical resistance
+
+#### 4. **Canned Text Types** - Standardized Report Components
+
+Nine categories for comprehensive clinical reporting with automated text generation
 
 ### Knowledge Base Inventory by Clinical Purpose
 
@@ -167,6 +226,70 @@ Managed by VEP setup rather than direct download:
 ```
 
 ---
+
+## Tumor-Normal vs Tumor-Only Analysis Workflows
+
+The annotation engine supports both **Tumor-Normal (T-N)** and **Tumor-Only (T-O)** analysis workflows with sophisticated confidence scoring and appropriate clinical safeguards.
+
+### Analysis Type Detection
+- **Automatic**: Detects T-N when both `--tumor-vcf` and `--normal-vcf` are provided
+- **Legacy support**: Single VCF input defaults to tumor-only analysis
+- **Explicit control**: Can be set via configuration if needed
+
+### Key Differences Between Workflows
+
+| Aspect | Tumor-Normal (T-N) | Tumor-Only (T-O) |
+|--------|-------------------|------------------|
+| **Filtering** | Direct subtraction (variants in normal are germline) | Population AF + Panel of Normals filtering |
+| **Confidence** | High confidence in somatic calls | Dynamic Somatic Confidence (DSC) scoring |
+| **Tier Assignment** | Standard AMP/ASCO/CAP tiers | DSC-modulated tiers (Tier I requires DSC > 0.9) |
+| **Clinical Use** | Preferred for precision oncology | Acceptable with appropriate disclaimers |
+| **Germline Risk** | Minimal (filtered by normal) | Requires secondary findings review |
+
+### Dynamic Somatic Confidence (DSC) Model
+
+For tumor-only analysis, we implement a sophisticated **Dynamic Somatic Confidence** score that replaces naive flat penalties:
+
+```
+DSC = P(Somatic | evidence) ranging from 0.0 to 1.0
+```
+
+**DSC Modules:**
+1. **VAF/Purity Consistency** - Evaluates if variant allele frequency matches expected somatic patterns
+2. **Somatic vs Germline Prior** - Leverages hotspots, population databases, and gene context
+3. **Genomic Context** - (Future: LOH patterns, mutational signatures)
+
+**Tier Requirements with DSC:**
+- **Tier I**: Requires DSC > 0.9 (near-certain somatic origin)
+- **Tier II**: Requires DSC > 0.6 (likely somatic)
+- **Tier III**: Default for ambiguous variants (DSC 0.2-0.6)
+- **Filtered**: DSC < 0.2 (likely germline or artifact)
+
+## Tumor Purity Integration
+
+The engine integrates tumor purity estimation for enhanced variant interpretation, especially critical for tumor-only analysis.
+
+### Purity Data Sources (Priority Order)
+1. **HMF PURPLE output** - If available via `--purple-output` parameter
+2. **User-provided metadata** - Via `--tumor-purity` parameter (0.0-1.0)
+3. **VAF-based estimation** - Automatic fallback using variant allele frequencies
+
+### PURPLE-Inspired Purity Estimation
+
+While we don't require HMF tools installation, our VAF-based estimator adapts key PURPLE concepts:
+
+- **Heterozygous peak detection** - Most somatic variants cluster at VAF ≈ purity/2
+- **Multi-scenario evaluation** - Considers heterozygous, LOH, and subclonal patterns
+- **Quality filtering** - Excludes low-quality variants and common polymorphisms
+- **Confidence scoring** - Provides reliability metric for the estimate
+
+### Clinical Impact of Purity
+
+Tumor purity directly affects:
+- **VAF interpretation** - Expected VAFs for somatic vs germline variants
+- **DSC calculation** - VAF/purity consistency is a key confidence factor
+- **Tier assignment** - Low purity may limit confidence in somatic calls
+- **Clinical disclaimers** - Automated warnings for low-purity samples
 
 ## Architecture Overview
 

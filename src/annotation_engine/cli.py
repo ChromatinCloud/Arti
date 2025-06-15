@@ -142,8 +142,8 @@ class AnnotationEngineCLI:
             '--guidelines',
             type=str,
             nargs='+',
-            choices=['AMP_2017', 'VICC_2022', 'ONCOKB'],
-            default=['AMP_2017', 'VICC_2022', 'ONCOKB'],
+            choices=['AMP_ACMG', 'CGC_VICC', 'ONCOKB'],
+            default=['AMP_ACMG', 'CGC_VICC', 'ONCOKB'],
             help='Clinical guidelines to apply (default: all)'
         )
         parser.add_argument(
@@ -319,6 +319,7 @@ class AnnotationEngineCLI:
                 "min_vaf": validated_input.min_vaf,
                 "skip_qc": validated_input.skip_qc
             },
+            tumor_purity=validated_input.tumor_purity,
             vcf_summary=vcf_validation,
             config_file=str(validated_input.config) if validated_input.config else None,
             kb_bundle=str(validated_input.kb_bundle) if validated_input.kb_bundle else None
@@ -423,9 +424,14 @@ class AnnotationEngineCLI:
                 print("\n🔍 DRY RUN MODE - Validation complete, stopping before annotation")
                 return 0
             
-            # TODO: Pass to annotation pipeline
-            print("\n🔄 Annotation pipeline not yet implemented")
-            print("📝 Analysis request created successfully")
+            # Execute annotation pipeline
+            print("\n🔄 Starting annotation pipeline...")
+            results = self._execute_annotation_pipeline(analysis_request)
+            
+            print(f"✅ Annotation complete: {len(results)} variants processed")
+            
+            # Save results
+            self._save_results(results, analysis_request)
             
             # Save analysis request for debugging
             if args.verbose > 0:
@@ -450,6 +456,76 @@ class AnnotationEngineCLI:
         except Exception as e:
             self.error_handler.handle_unexpected_error(e, verbose=args.verbose if 'args' in locals() else 0)
             return 1
+    
+    def _execute_annotation_pipeline(self, analysis_request) -> List[Dict[str, Any]]:
+        """Execute the complete annotation pipeline"""
+        from .variant_processor import create_variant_annotations_from_vcf
+        from .tiering import process_vcf_to_tier_results
+        
+        # Step 1: Process VCF through filtering and variant annotation
+        print("  📋 Processing VCF files...")
+        
+        # Determine input files
+        if analysis_request.tumor_vcf_path and analysis_request.normal_vcf_path:
+            # Tumor-normal analysis
+            analysis_type = "TUMOR_NORMAL"
+            tumor_vcf = Path(analysis_request.tumor_vcf_path)
+            normal_vcf = Path(analysis_request.normal_vcf_path)
+            
+            print(f"  📁 Tumor VCF: {tumor_vcf}")
+            print(f"  📁 Normal VCF: {normal_vcf}")
+            
+        elif analysis_request.tumor_vcf_path:
+            # Tumor-only analysis
+            analysis_type = "TUMOR_ONLY"
+            tumor_vcf = Path(analysis_request.tumor_vcf_path)
+            normal_vcf = None
+            
+            print(f"  📁 Tumor VCF: {tumor_vcf}")
+            
+        else:
+            # Legacy single VCF (default to tumor-only)
+            analysis_type = "TUMOR_ONLY"
+            tumor_vcf = Path(analysis_request.vcf_file_path)
+            normal_vcf = None
+            
+            print(f"  📁 Input VCF: {tumor_vcf}")
+        
+        print(f"  🔬 Analysis type: {analysis_type}")
+        
+        # Step 2: Execute complete pipeline
+        try:
+            tier_results, processing_summary = process_vcf_to_tier_results(
+                tumor_vcf_path=tumor_vcf,
+                normal_vcf_path=normal_vcf,
+                cancer_type=analysis_request.cancer_type,
+                analysis_type=analysis_type,
+                tumor_purity=analysis_request.tumor_purity,
+                output_format='json'
+            )
+            
+            print(f"  📊 Processing summary: {processing_summary.get('total_variants', 0)} total variants")
+            print(f"  🎯 Tier results: {len(tier_results)} annotated variants")
+            
+            return tier_results
+            
+        except Exception as e:
+            print(f"  ❌ Pipeline error: {e}")
+            raise
+    
+    def _save_results(self, results: List[Dict[str, Any]], analysis_request):
+        """Save annotation results to output files"""
+        output_dir = Path(analysis_request.output_directory)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save JSON results
+        results_file = output_dir / "annotation_results.json"
+        with open(results_file, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+        
+        print(f"💾 Results saved: {results_file}")
+        
+        # TODO: Add other output formats (TSV, HTML) based on analysis_request.output_format
 
 
 def main() -> int:

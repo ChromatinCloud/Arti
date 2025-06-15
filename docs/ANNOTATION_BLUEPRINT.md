@@ -148,20 +148,44 @@
                     <Cell>Implementation Logic</Cell>
                 </HeaderRow>
                 <Row>
-                    <Cell>**Tier I**</Cell>
-                    <Cell>Variants with strong clinical significance</Cell>
+                    <Cell>**Tier IA**</Cell>
+                    <Cell>Strong Clinical Significance (FDA-approved)</Cell>
                     <Cell>FDA-approved therapy for this variant in this cancer type</Cell>
                     <Cell>OncoKB Level 1, cancer type, variant match</Cell>
                     <Cell>OncoKB, CIViC Level A</Cell>
                     <Cell>Direct therapeutic match in OncoKB Level 1 for patient's cancer type</Cell>
                 </Row>
                 <Row>
-                    <Cell>**Tier II**</Cell>
-                    <Cell>Variants with potential clinical significance</Cell>
-                    <Cell>FDA-approved therapy for different cancer OR investigational therapy</Cell>
+                    <Cell>**Tier IB**</Cell>
+                    <Cell>Strong Clinical Significance (Professional guidelines)</Cell>
+                    <Cell>Included in professional society guidelines (NCCN, ASCO, etc.)</Cell>
+                    <Cell>Guideline-endorsed biomarker for specific indication</Cell>
+                    <Cell>CIViC Level A, professional guideline databases</Cell>
+                    <Cell>Well-established biomarker in clinical practice guidelines</Cell>
+                </Row>
+                <Row>
+                    <Cell>**Tier IIC**</Cell>
+                    <Cell>Potential Clinical Significance (Clinical evidence)</Cell>
+                    <Cell>Clinical trials, well-powered studies, or FDA-approved in different cancer</Cell>
                     <Cell>OncoKB Level 2A/2B, clinical trial evidence</Cell>
-                    <Cell>OncoKB, CIViC Level B/C, DGIdb</Cell>
-                    <Cell>Therapeutic evidence in related cancer types or strong investigational data</Cell>
+                    <Cell>OncoKB, CIViC Level B, ClinicalTrials.gov</Cell>
+                    <Cell>Multiple clinical studies or off-label FDA approval</Cell>
+                </Row>
+                <Row>
+                    <Cell>**Tier IID**</Cell>
+                    <Cell>Potential Clinical Significance (Preclinical evidence)</Cell>
+                    <Cell>Compelling preclinical studies, case reports</Cell>
+                    <Cell>OncoKB Level 3A/3B, multiple case reports</Cell>
+                    <Cell>OncoKB, CIViC Level C/D, PubMed</Cell>
+                    <Cell>Strong in vitro/in vivo data or case series</Cell>
+                </Row>
+                <Row>
+                    <Cell>**Tier IIE**</Cell>
+                    <Cell>Investigational/Emerging Evidence</Cell>
+                    <Cell>Novel findings, early research, investigational drugs</Cell>
+                    <Cell>OncoKB Level 4, emerging biomarker evidence</Cell>
+                    <Cell>DGIdb, early phase trials, research literature</Cell>
+                    <Cell>Biological plausibility with limited clinical data</Cell>
                 </Row>
                 <Row>
                     <Cell>**Tier III**</Cell>

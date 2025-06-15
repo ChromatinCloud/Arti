@@ -252,6 +252,9 @@ class AnalysisRequest(BaseSchema):
     # Quality control
     quality_filters: Dict[str, Any] = Field(..., description="Quality filter settings")
     
+    # Tumor purity
+    tumor_purity: Optional[float] = Field(None, ge=0.0, le=1.0, description="Estimated tumor purity (0.0-1.0)")
+    
     # VCF validation results
     vcf_summary: Dict[str, Any] = Field({}, description="VCF validation summary")
     
