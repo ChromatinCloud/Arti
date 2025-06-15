@@ -44,20 +44,20 @@ Our annotation engine integrates **42 curated knowledge bases** covering all maj
 
 ### Clinical Classification Frameworks Supported
 
-1. **ACMG/AMP Guidelines** (2015) - Germline pathogenicity assessment
+1. **AMP/ASCO/CAP Guidelines** (2017) - Somatic variant therapeutic actionability (Tiers I-IV)
 2. **ClinGen/CGC/VICC Guidelines** (2022) - Somatic oncogenicity assessment  
 3. **OncoKB Therapeutic Guidelines** - Clinical actionability tiers
 4. **Canned Text Types** - Nine standardized report components
 
 ### Knowledge Base Inventory by Clinical Purpose
 
-#### **Population Frequencies & Variant Context** (ACMG: BA1, BS1, PM2; VICC: SBVS1, OP4)
-- **gnomAD Exomes** (20GB) - Population allele frequencies for rare variant assessment
+#### **Population Frequencies & Variant Context** (AMP 2017: Tier filtering; VICC: SBVS1, OP4)
+- **gnomAD Exomes** (20GB) - Filter common germline variants in tumor-only sequencing
 - **gnomAD Genomes** (150GB) - Comprehensive population frequencies including structural variants
-- **dbSNP** (25GB) - Variant identifiers and common variant flagging
-- **ClinVar VCF & TSV** (350MB) - Clinical significance classifications (ACMG: PS1, PM5, PP5, BP2)
+- **dbSNP** (25GB) - Variant identifiers and common variant flagging for somatic filtering
+- **ClinVar VCF & TSV** (350MB) - Clinical significance for somatic variant interpretation (VICC: OS2)
 
-#### **Clinical Evidence & Pathogenicity** (Multiple ACMG/VICC criteria)
+#### **Clinical Evidence & Therapeutic Actionability** (AMP 2017 Tiers; VICC Oncogenicity)
 - **CIViC Variants & Hotspots** (15MB) - Clinical evidence summaries for cancer variants
 - **OncoKB Genes** (1MB) - Curated cancer gene lists and actionability
 - **CancerMine** (20MB) - Literature-mined oncogenes and tumor suppressors
@@ -114,16 +114,17 @@ Managed by VEP setup rather than direct download:
 
 ### Clinical Rule Mapping
 
-| Framework | Evidence Type | Knowledge Bases Used | Example Rules |
-|-----------|---------------|---------------------|---------------|
-| **ACMG/AMP** | Population frequency | gnomAD, dbSNP | BA1 (>5% frequency), PM2 (absent from controls) |
-| **ACMG/AMP** | Prior observations | ClinVar | PS1 (same AA change), PM5 (same residue) |
-| **ACMG/AMP** | Computational predictions | dbNSFP plugins | PP3 (multiple tools predict damaging) |
-| **ACMG/AMP** | Gene mechanism | ClinGen, UniProt | PVS1 (null variant in LoF gene) |
-| **VICC** | Cancer gene context | Cancer Gene Census | OVS1 (null in tumor suppressor) |
-| **VICC** | Hotspot evidence | Cancer Hotspots, MSK | OS3 (recurrent at position) |
-| **VICC** | Functional domain | Pfam, UniProt | OM1 (critical domain) |
-| **OncoKB** | Therapeutic actionability | OncoKB API/files | Level 1-4 evidence tiers |
+| Framework | Evidence Type | Knowledge Bases Used | Somatic Application |
+|-----------|---------------|---------------------|-------------------|
+| **AMP/ASCO/CAP 2017** | Therapeutic actionability | OncoKB, CIViC, DGIdb | Tier I (FDA-approved), Tier II (investigational) |
+| **AMP/ASCO/CAP 2017** | Cancer gene context | Cancer Gene Census, OncoVI TSG/Oncogenes | Driver gene classification for tier assignment |
+| **AMP/ASCO/CAP 2017** | Hotspot evidence | MSK Hotspots, COSMIC, OncoVI | Recurrent mutations indicate driver status |
+| **AMP/ASCO/CAP 2017** | Population filtering | gnomAD, dbSNP | Remove common germline variants in tumor-only |
+| **VICC 2022** | Oncogenicity assessment | Cancer Gene Census | OVS1 (+8 points: null in tumor suppressor) |
+| **VICC 2022** | Hotspot evidence | Cancer Hotspots, MSK | OS3 (+4 points: recurrent at position) |
+| **VICC 2022** | Functional domain | Pfam, UniProt, OncoVI | OM1 (+2 points: critical domain) |
+| **VICC 2022** | Clinical significance | ClinVar, CIViC | OS2 (+4 points: pathogenic in ClinVar) |
+| **OncoKB** | Evidence levels | OncoKB curated genes | Level 1-4 therapeutic evidence hierarchy |
 
 ### Canned Text Report Types Supported
 

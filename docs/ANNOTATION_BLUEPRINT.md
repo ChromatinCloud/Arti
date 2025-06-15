@@ -129,79 +129,55 @@
 
     <Part id="III" title="Implementing Guideline-Driven Variant Interpretation">
         <Introduction>
-            <Paragraph>With a fully annotated variant object, the next stage is to apply clinical guidelines to classify it. This is the core "intelligence" of the application. It is critical to recognize that germline pathogenicity assessment and somatic oncogenicity assessment are two distinct processes that require separate, though related, classification frameworks.</Paragraph>
+            <Paragraph>With a fully annotated variant object, the next stage is to apply clinical guidelines to classify it. This is the core "intelligence" of the application. For somatic variant interpretation in cancer, three complementary frameworks work together: AMP/ASCO/CAP 2017 for therapeutic actionability (Tiers I-IV), VICC 2022 for oncogenicity assessment (point-based scoring), and OncoKB for evidence hierarchy (Levels 1-4).</Paragraph>
         </Introduction>
-        <Section id="III.A" title="A Dual-Framework Imperative: Germline vs. Somatic">
-            <Paragraph>The AMP/ACMG guidelines are designed to assess the pathogenicity of a germline variant, meaning its ability to cause a hereditary (Mendelian) disease.[7] The ClinGen/CGC/VICC guidelines, in contrast, are designed to assess the oncogenicity of a somatic variant—its role as a driver of cancer development in tumor cells.[5] While some variants can be both (e.g., a germline *TP53* variant causing Li-Fraumeni syndrome is pathogenic, and an acquired somatic *TP53* variant is oncogenic), the evidence types and classification rules are different. The pipeline must therefore implement two parallel classification engines.</Paragraph>
+        <Section id="III.A" title="Somatic Variant Interpretation Framework">
+            <Paragraph>The AMP/ASCO/CAP 2017 guidelines provide a systematic approach to classify somatic variants based on their therapeutic actionability in cancer.[7] The VICC 2022 framework complements this by scoring oncogenicity using evidence-based criteria.[5] OncoKB provides a curated evidence hierarchy that directly maps to therapeutic decision-making. Together, these frameworks enable comprehensive somatic variant interpretation focused on cancer driver assessment and treatment selection.</Paragraph>
         </Section>
-        <Section id="III.B" title="Automating the AMP/ACMG Framework for Pathogenicity">
+        <Section id="III.B" title="Automating the AMP/ASCO/CAP 2017 Framework for Therapeutic Actionability">
             <Introduction>
-                <Paragraph>The 2015 ACMG guidelines consist of 28 evidence criteria that are combined to classify a variant into one of five tiers: Pathogenic, Likely Pathogenic, Variant of Uncertain Significance (VUS), Likely Benign, or Benign.[7] These criteria can be implemented as a set of computational rules that operate on the annotated variant data. The following table provides a developer-ready blueprint for this automation.</Paragraph>
+                <Paragraph>The AMP/ASCO/CAP 2017 guidelines classify somatic variants into four tiers based on therapeutic actionability in cancer.[7] Unlike germline pathogenicity assessment, this framework focuses on treatment implications and clinical utility. The following table provides a developer-ready blueprint for implementing these tiers using knowledge base integration.</Paragraph>
             </Introduction>
-            <Table id="ACMG_Automation">
+            <Table id="AMP_2017_Automation">
                 <HeaderRow>
-                    <Cell>ACMG Code</Cell>
-                    <Cell>Evidence Type</Cell>
-                    <Cell>Strength</Cell>
-                    <Cell>Description</Cell>
+                    <Cell>AMP Tier</Cell>
+                    <Cell>Definition</Cell>
+                    <Cell>Evidence Requirements</Cell>
                     <Cell>Required Annotation Data</Cell>
                     <Cell>Source Database(s)</Cell>
+                    <Cell>Implementation Logic</Cell>
                 </HeaderRow>
                 <Row>
-                    <Cell>**PVS1**</Cell>
-                    <Cell>Pathogenic</Cell>
-                    <Cell>Very Strong</Cell>
-                    <Cell>Null variant (nonsense, frameshift, canonical splice) in a gene where Loss-of-Function (LoF) is a known disease mechanism.</Cell>
-                    <Cell>VEP `Consequence`, list of known LoF genes.</Cell>
-                    <Cell>VEP, OMIM, ClinGen</Cell>
+                    <Cell>**Tier I**</Cell>
+                    <Cell>Variants with strong clinical significance</Cell>
+                    <Cell>FDA-approved therapy for this variant in this cancer type</Cell>
+                    <Cell>OncoKB Level 1, cancer type, variant match</Cell>
+                    <Cell>OncoKB, CIViC Level A</Cell>
+                    <Cell>Direct therapeutic match in OncoKB Level 1 for patient's cancer type</Cell>
                 </Row>
                 <Row>
-                    <Cell>**PS1**</Cell>
-                    <Cell>Pathogenic</Cell>
-                    <Cell>Strong</Cell>
-                    <Cell>Same amino acid change as a previously established pathogenic variant.</Cell>
-                    <Cell>Variant protein change, ClinVar classification.</Cell>
-                    <Cell>VEP, ClinVar</Cell>
+                    <Cell>**Tier II**</Cell>
+                    <Cell>Variants with potential clinical significance</Cell>
+                    <Cell>FDA-approved therapy for different cancer OR investigational therapy</Cell>
+                    <Cell>OncoKB Level 2A/2B, clinical trial evidence</Cell>
+                    <Cell>OncoKB, CIViC Level B/C, DGIdb</Cell>
+                    <Cell>Therapeutic evidence in related cancer types or strong investigational data</Cell>
                 </Row>
                 <Row>
-                    <Cell>**PM2**</Cell>
-                    <Cell>Pathogenic</Cell>
-                    <Cell>Moderate</Cell>
-                    <Cell>Absent from controls in population databases.</Cell>
-                    <Cell>gnomAD allele frequency = 0 or extremely low.</Cell>
-                    <Cell>gnomAD</Cell>
+                    <Cell>**Tier III**</Cell>
+                    <Cell>Variants of unknown clinical significance</Cell>
+                    <Cell>Clinical significance unclear but potential relevance</Cell>
+                    <Cell>OncoKB Level 3A/3B, hotspot evidence, driver gene context</Cell>
+                    <Cell>OncoKB, Cancer Hotspots, Cancer Gene Census</Cell>
+                    <Cell>Driver gene + hotspot evidence OR preclinical evidence</Cell>
                 </Row>
                 <Row>
-                    <Cell>**PP3**</Cell>
-                    <Cell>Pathogenic</Cell>
-                    <Cell>Supporting</Cell>
-                    <Cell>Multiple lines of computational evidence support a deleterious effect.</Cell>
-                    <Cell>High scores from REVEL, CADD, SpliceAI, etc.</Cell>
-                    <Cell>VEP plugins, dbNSFP</Cell>
-                </Row>
-                <Row>
-                    <Cell>**BA1**</Cell>
-                    <Cell>Benign</Cell>
-                    <Cell>Stand-Alone</Cell>
-                    <Cell>Allele frequency is >5% in a major continental population in gnomAD.</Cell>
-                    <Cell>gnomAD allele frequency.</Cell>
-                    <Cell>gnomAD</Cell>
-                </Row>
-                <Row>
-                    <Cell>**BS1**</Cell>
-                    <Cell>Benign</Cell>
-                    <Cell>Strong</Cell>
-                    <Cell>Allele frequency is greater than expected for the disorder.</Cell>
-                    <Cell>gnomAD allele frequency, disease prevalence.</Cell>
-                    <Cell>gnomAD, OMIM</Cell>
-                </Row>
-                <Row>
-                    <Cell>**BP4**</Cell>
-                    <Cell>Benign</Cell>
-                    <Cell>Supporting</Cell>
-                    <Cell>Multiple lines of computational evidence suggest no impact.</Cell>
-                    <Cell>Low/benign scores from REVEL, CADD, etc.</Cell>
-                    <Cell>VEP plugins, dbNSFP</Cell>
+                    <Cell>**Tier IV**</Cell>
+                    <Cell>Benign or likely benign variants</Cell>
+                    <Cell>No clinical significance OR common population variant</Cell>
+                    <Cell>High population frequency, computational predictions</Cell>
+                    <Cell>gnomAD (>1% VAF), dbNSFP predictions</Cell>
+                    <Cell>Common germline variant OR multiple lines of benign evidence</Cell>
                 </Row>
             </Table>
         </Section>

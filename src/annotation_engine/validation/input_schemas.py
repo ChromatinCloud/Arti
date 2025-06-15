@@ -11,6 +11,8 @@ from pathlib import Path
 from datetime import datetime
 import re
 
+from ..models import AnalysisType
+
 
 class BaseSchema(BaseModel):
     """Base configuration for all validation schemas"""
@@ -25,9 +27,14 @@ class BaseSchema(BaseModel):
 class CLIInputSchema(BaseSchema):
     """Schema for CLI input validation"""
     
-    # Input files
-    input: Optional[Path] = Field(None, description="Input VCF file path")
+    # Input files (mutually exclusive with dual input)
+    input: Optional[Path] = Field(None, description="Input VCF file path (legacy single input)")
+    tumor_vcf: Optional[Path] = Field(None, description="Tumor sample VCF file")
+    normal_vcf: Optional[Path] = Field(None, description="Normal sample VCF file (optional)")
     api_mode: bool = Field(False, description="API mode flag")
+    
+    # Analysis type (auto-detected or explicit)
+    analysis_type: Optional[AnalysisType] = Field(None, description="Analysis workflow type")
     
     # Case identifiers
     case_uid: str = Field(..., min_length=1, max_length=255, description="Case unique identifier")
@@ -68,18 +75,66 @@ class CLIInputSchema(BaseSchema):
             raise ValueError('IDs must contain only alphanumeric characters, hyphens, and underscores')
         return v
     
-    @validator('input')
-    def validate_input_file(cls, v):
-        """Validate input file path and extension"""
+    @validator('input', 'tumor_vcf', 'normal_vcf')
+    def validate_vcf_file(cls, v):
+        """Validate VCF file path and extension"""
         if v is None:
             return v
             
         if not v.suffix.lower() in ['.vcf', '.gz']:
-            raise ValueError('Input file must be .vcf or .vcf.gz format')
+            raise ValueError('VCF file must be .vcf or .vcf.gz format')
         
         # For .gz files, check if it's .vcf.gz
         if v.suffix.lower() == '.gz' and not v.stem.endswith('.vcf'):
             raise ValueError('Compressed files must be .vcf.gz format')
+        
+        return v
+    
+    @validator('analysis_type', always=True)
+    def auto_detect_analysis_type(cls, v, values):
+        """Auto-detect analysis type if not explicitly set"""
+        if v is not None:
+            return v
+        
+        # Check input patterns to auto-detect
+        input_file = values.get('input')
+        tumor_vcf = values.get('tumor_vcf')
+        normal_vcf = values.get('normal_vcf')
+        
+        # Legacy single input - assume tumor-only
+        if input_file and not tumor_vcf and not normal_vcf:
+            return AnalysisType.TUMOR_ONLY
+        
+        # Dual input with normal - tumor-normal
+        if tumor_vcf and normal_vcf:
+            return AnalysisType.TUMOR_NORMAL
+        
+        # Only tumor VCF specified - tumor-only
+        if tumor_vcf and not normal_vcf:
+            return AnalysisType.TUMOR_ONLY
+        
+        # Default to tumor-only if unclear
+        return AnalysisType.TUMOR_ONLY
+    
+    @validator('normal_vcf')
+    def validate_input_consistency(cls, v, values):
+        """Validate input file consistency"""
+        input_file = values.get('input')
+        tumor_vcf = values.get('tumor_vcf')
+        normal_vcf = v  # Current field being validated
+        analysis_type = values.get('analysis_type')
+        
+        # Cannot mix legacy and new input styles
+        if input_file and (tumor_vcf or normal_vcf):
+            raise ValueError('Cannot specify both --input and --tumor-vcf/--normal-vcf')
+        
+        # Normal VCF requires tumor VCF
+        if normal_vcf and not tumor_vcf:
+            raise ValueError('--normal-vcf requires --tumor-vcf')
+        
+        # Analysis type consistency
+        if analysis_type == AnalysisType.TUMOR_NORMAL and not normal_vcf:
+            raise ValueError('TUMOR_NORMAL analysis requires --normal-vcf')
         
         return v
     
@@ -172,7 +227,12 @@ class AnalysisRequest(BaseSchema):
     patient_uid: str = Field(..., description="Patient unique identifier")
     
     # Input data
-    vcf_file_path: Optional[str] = Field(None, description="VCF file path")
+    vcf_file_path: Optional[str] = Field(None, description="VCF file path (legacy)")
+    tumor_vcf_path: Optional[str] = Field(None, description="Tumor VCF file path")
+    normal_vcf_path: Optional[str] = Field(None, description="Normal VCF file path")
+    
+    # Analysis workflow
+    analysis_type: AnalysisType = Field(..., description="Analysis workflow type")
     
     # Clinical context
     cancer_type: str = Field(..., description="Cancer type")

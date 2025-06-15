@@ -38,22 +38,42 @@ class AnnotationEngineCLI:
         
         parser = argparse.ArgumentParser(
             prog='annotation-engine',
-            description='Clinical Variant Annotation Engine - Validate and annotate variants following AMP/ACMG, CGC/VICC, and OncoKB guidelines',
+            description='Clinical Variant Annotation Engine - Validate and annotate somatic variants following AMP/ASCO/CAP 2017, VICC 2022, and OncoKB guidelines',
             epilog='Example: annotation-engine --input sample.vcf --case-uid CASE_001 --cancer-type lung_adenocarcinoma',
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
         
-        # Input specification (mutually exclusive)
+        # Input specification 
         input_group = parser.add_mutually_exclusive_group(required=True)
         input_group.add_argument(
             '--input', '--vcf',
             type=Path,
-            help='Input VCF file path (supports .vcf, .vcf.gz)'
+            help='Input VCF file path (legacy single input, supports .vcf, .vcf.gz)'
+        )
+        input_group.add_argument(
+            '--tumor-vcf',
+            type=Path,
+            help='Tumor sample VCF file path'
         )
         input_group.add_argument(
             '--api-mode',
             action='store_true',
             help='Run in API mode (start web server)'
+        )
+        
+        # Normal VCF (optional, only valid with --tumor-vcf)
+        parser.add_argument(
+            '--normal-vcf',
+            type=Path,
+            help='Normal sample VCF file path (optional, enables tumor-normal analysis)'
+        )
+        
+        # Analysis type (auto-detected but can be overridden)
+        parser.add_argument(
+            '--analysis-type',
+            type=str,
+            choices=['TUMOR_NORMAL', 'TUMOR_ONLY'],
+            help='Analysis workflow type (auto-detected if not specified)'
         )
         
         # Required case information
@@ -122,8 +142,8 @@ class AnnotationEngineCLI:
             '--guidelines',
             type=str,
             nargs='+',
-            choices=['AMP_ACMG', 'CGC_VICC', 'ONCOKB'],
-            default=['AMP_ACMG', 'CGC_VICC', 'ONCOKB'],
+            choices=['AMP_2017', 'VICC_2022', 'ONCOKB'],
+            default=['AMP_2017', 'VICC_2022', 'ONCOKB'],
             help='Clinical guidelines to apply (default: all)'
         )
         
@@ -256,10 +276,27 @@ class AnnotationEngineCLI:
         Returns:
             Analysis request ready for processing
         """
+        # Handle legacy and new input patterns
+        vcf_file_path = None
+        tumor_vcf_path = None
+        normal_vcf_path = None
+        
+        if validated_input.input:
+            # Legacy single input
+            vcf_file_path = str(validated_input.input)
+        elif validated_input.tumor_vcf:
+            # New dual input pattern
+            tumor_vcf_path = str(validated_input.tumor_vcf)
+            if validated_input.normal_vcf:
+                normal_vcf_path = str(validated_input.normal_vcf)
+        
         return AnalysisRequest(
             case_uid=validated_input.case_uid,
             patient_uid=validated_input.patient_uid,
-            vcf_file_path=str(validated_input.input) if validated_input.input else None,
+            vcf_file_path=vcf_file_path,
+            tumor_vcf_path=tumor_vcf_path,
+            normal_vcf_path=normal_vcf_path,
+            analysis_type=validated_input.analysis_type,
             cancer_type=validated_input.cancer_type,
             oncotree_id=validated_input.oncotree_id,
             tissue_type=validated_input.tissue_type,
@@ -294,10 +331,21 @@ class AnnotationEngineCLI:
         if analysis_request.oncotree_id:
             print(f"🏷️  OncoTree ID: {analysis_request.oncotree_id}")
         
+        # Analysis type and input files
+        print(f"\n🔬 Analysis Type: {analysis_request.analysis_type.value}")
+        
         # VCF summary
+        vcf_summary = analysis_request.vcf_summary
         if analysis_request.vcf_file_path:
-            vcf_summary = analysis_request.vcf_summary
+            # Legacy single input
             print(f"\n📄 VCF File: {Path(analysis_request.vcf_file_path).name}")
+        elif analysis_request.tumor_vcf_path:
+            # Dual input pattern
+            print(f"\n📄 Tumor VCF: {Path(analysis_request.tumor_vcf_path).name}")
+            if analysis_request.normal_vcf_path:
+                print(f"📄 Normal VCF: {Path(analysis_request.normal_vcf_path).name}")
+        
+        if vcf_summary:
             print(f"🧩 Total Variants: {vcf_summary.get('total_variants', 'Unknown')}")
             print(f"✅ Valid Format: {vcf_summary.get('valid_format', 'Unknown')}")
             
@@ -305,6 +353,10 @@ class AnnotationEngineCLI:
                 print("📊 Variant Types:")
                 for var_type, count in vcf_summary['variant_types'].items():
                     print(f"   {var_type}: {count}")
+        
+        # Analysis-specific warnings
+        if analysis_request.analysis_type == "TUMOR_ONLY":
+            print("\n⚠️  TUMOR-ONLY ANALYSIS: Somatic status will be inferred, not confirmed")
         
         # Analysis configuration
         print(f"\n⚙️  Guidelines: {', '.join(analysis_request.guidelines)}")
