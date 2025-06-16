@@ -54,7 +54,7 @@ class CLIInputSchema(BaseSchema):
     output_format: str = Field("all", description="Output format")
     
     # Analysis parameters
-    genome: str = Field("GRCh37", description="Reference genome build")
+    genome: str = Field("GRCh38", description="Reference genome build")
     guidelines: List[str] = Field(["AMP_ACMG", "CGC_VICC", "ONCOKB"], description="Clinical guidelines")
     
     # Quality control

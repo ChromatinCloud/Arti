@@ -22,8 +22,19 @@ NC='\033[0m'
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$(pwd)")"
 REFS_DIR="$REPO_ROOT/.refs"
 
-# Create comprehensive directory structure
-mkdir -p "$REFS_DIR"/{clinvar,gnomad,dbsnp,tcga,open_targets,uniprot,pfam,cancermine,cancer_hotspots,civic,oncokb,biomarkers,gene_mappings,oncotree,clingen,depmap,oncovi,temp}
+# Create comprehensive directory structure following new organization
+mkdir -p "$REFS_DIR"/{clinical_evidence,population_frequencies,functional_predictions,structural_variants,cancer_signatures,literature_mining,reference_assemblies,vep_setup,pharmacogenomics,sample_data,temp}
+mkdir -p "$REFS_DIR/clinical_evidence"/{clinvar,civic,oncokb,clingen,biomarkers}
+mkdir -p "$REFS_DIR/population_frequencies"/{gnomad,dbsnp,exac}
+mkdir -p "$REFS_DIR/functional_predictions"/{vep_cache,vep_plugins,plugin_data}
+mkdir -p "$REFS_DIR/functional_predictions/plugin_data"/{pathogenicity,protein_impact,splicing,conservation,gene_constraint,phenotype_annotations,regulatory,utr,clinvar,mavedb}
+mkdir -p "$REFS_DIR/structural_variants"/{sv_annotations}
+mkdir -p "$REFS_DIR/cancer_signatures"/{hotspots,cosmic,tcga,depmap}
+mkdir -p "$REFS_DIR/literature_mining"/{cancermine,pubmed}
+mkdir -p "$REFS_DIR/reference_assemblies"/{gencode,ensembl,refseq}
+mkdir -p "$REFS_DIR/vep_setup"/{cache,plugins,references}
+mkdir -p "$REFS_DIR/pharmacogenomics"/{pharmgkb,cpic}
+mkdir -p "$REFS_DIR/sample_data"/{test_vcfs,examples}
 
 # --- Logging Functions ---
 log_info() {
@@ -147,23 +158,22 @@ download_kb() {
     # Determine target directory based on category
     local target_dir=""
     case "$kb_key" in
-        clinvar_*) target_dir="$REFS_DIR/clinvar" ;;
-        gnomad_*) target_dir="$REFS_DIR/gnomad" ;;
-        dbsnp) target_dir="$REFS_DIR/dbsnp" ;;
-        tcga_*) target_dir="$REFS_DIR/tcga" ;;
-        open_targets|dgidb) target_dir="$REFS_DIR/open_targets" ;;
-        uniprot_*) target_dir="$REFS_DIR/uniprot" ;;
-        pfam) target_dir="$REFS_DIR/pfam" ;;
-        cancermine) target_dir="$REFS_DIR/cancermine" ;;
-        cancer_hotspots*|msk_hotspots*|civic_hotspots|cosmic_cgc|msk_3d_hotspots) target_dir="$REFS_DIR/cancer_hotspots" ;;
-        civic_*) target_dir="$REFS_DIR/civic" ;;
-        oncokb_*) target_dir="$REFS_DIR/oncokb" ;;
-        clinical_biomarkers) target_dir="$REFS_DIR/biomarkers" ;;
-        gene_mappings|hgnc_mappings) target_dir="$REFS_DIR/gene_mappings" ;;
-        oncotree|mondo_disease) target_dir="$REFS_DIR/oncotree" ;;
-        clingen_*) target_dir="$REFS_DIR/clingen" ;;
-        depmap_*) target_dir="$REFS_DIR/depmap" ;;
-        oncovi_*) target_dir="$REFS_DIR/oncovi" ;;
+        clinvar_*) target_dir="$REFS_DIR/clinical_evidence/clinvar" ;;
+        gnomad_*) target_dir="$REFS_DIR/population_frequencies/gnomad" ;;
+        dbsnp) target_dir="$REFS_DIR/population_frequencies/dbsnp" ;;
+        tcga_*) target_dir="$REFS_DIR/cancer_signatures/tcga" ;;
+        open_targets|dgidb) target_dir="$REFS_DIR/pharmacogenomics" ;;
+        uniprot_*|pfam) target_dir="$REFS_DIR/functional_predictions/plugin_data/protein_impact" ;;
+        cancermine) target_dir="$REFS_DIR/literature_mining/cancermine" ;;
+        cancer_hotspots*|msk_hotspots*|civic_hotspots|cosmic_cgc|msk_3d_hotspots) target_dir="$REFS_DIR/cancer_signatures/hotspots" ;;
+        civic_*) target_dir="$REFS_DIR/clinical_evidence/civic" ;;
+        oncokb_*) target_dir="$REFS_DIR/clinical_evidence/oncokb" ;;
+        clinical_biomarkers) target_dir="$REFS_DIR/clinical_evidence/biomarkers" ;;
+        gene_mappings|hgnc_mappings) target_dir="$REFS_DIR/reference_assemblies/gencode" ;;
+        oncotree|mondo_disease) target_dir="$REFS_DIR/clinical_evidence" ;;
+        clingen_*) target_dir="$REFS_DIR/clinical_evidence/clingen" ;;
+        depmap_*) target_dir="$REFS_DIR/cancer_signatures/depmap" ;;
+        oncovi_*) target_dir="$REFS_DIR/cancer_signatures/hotspots" ;;
         *) target_dir="$REFS_DIR/temp" ;;
     esac
     

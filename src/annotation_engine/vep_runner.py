@@ -29,7 +29,7 @@ class VEPConfiguration:
                  vep_command: Optional[str] = None,
                  cache_dir: Optional[Path] = None,
                  plugins_dir: Optional[Path] = None,
-                 assembly: str = "GRCh37",
+                 assembly: str = "GRCh38",
                  use_docker: bool = True,
                  docker_image: str = "ensemblorg/ensembl-vep:release_114.1"):
         
@@ -45,12 +45,12 @@ class VEPConfiguration:
         if cache_dir:
             self.cache_dir = Path(cache_dir)
         else:
-            self.cache_dir = self.refs_dir / "vep" / "cache"
+            self.cache_dir = self.refs_dir / "functional_predictions" / "vep_cache"
             
         if plugins_dir:
             self.plugins_dir = Path(plugins_dir)
         else:
-            self.plugins_dir = self.refs_dir / "vep" / "plugins"
+            self.plugins_dir = self.refs_dir / "functional_predictions" / "vep_plugins"
         
         # VEP command detection
         if vep_command:
@@ -100,9 +100,14 @@ class VEPConfiguration:
         """Validate VEP configuration"""
         
         if self.use_docker:
-            return self._validate_docker_config()
+            validation_result = self._validate_docker_config()
         else:
-            return self._validate_native_config()
+            validation_result = self._validate_native_config()
+        
+        # Validate plugin data files
+        self._validate_plugin_data()
+        
+        return validation_result
     
     def _validate_docker_config(self) -> bool:
         """Validate Docker VEP configuration"""
@@ -138,6 +143,41 @@ class VEPConfiguration:
             logger.warning(f"VEP cache directory not found: {self.cache_dir}")
         
         return True
+    
+    def _validate_plugin_data(self) -> None:
+        """Validate VEP plugin data files existence"""
+        
+        missing_plugins = []
+        available_plugins = []
+        
+        # Default plugins that should be checked
+        plugin_checks = {
+            "dbNSFP": self.refs_dir / "functional_predictions" / "plugin_data" / "pathogenicity" / "dbNSFP5.1.gz",
+            "AlphaMissense": self.refs_dir / "functional_predictions" / "plugin_data" / "protein_impact" / "AlphaMissense_hg38.tsv.gz",
+            "REVEL": self.refs_dir / "functional_predictions" / "plugin_data" / "pathogenicity" / "revel_all_chromosomes.tsv.gz",
+            "SpliceAI": self.refs_dir / "functional_predictions" / "plugin_data" / "splicing" / "spliceai_scores.raw.snv.hg38.vcf.gz",
+            "gnomAD": self.refs_dir / "population_frequencies" / "gnomad" / "gnomad.genomes.v3.1.2.sites.vcf.bgz",
+            "ClinVar": self.refs_dir / "clinical_evidence" / "clinvar" / "clinvar.vcf.gz",
+            "LoFtool": self.refs_dir / "functional_predictions" / "plugin_data" / "gene_constraint" / "LoFtool_scores.txt"
+        }
+        
+        for plugin_name, plugin_path in plugin_checks.items():
+            if plugin_path.exists():
+                available_plugins.append(plugin_name)
+            else:
+                missing_plugins.append(f"{plugin_name}: {plugin_path}")
+        
+        if missing_plugins:
+            logger.warning(f"Missing VEP plugin data files: {len(missing_plugins)}/{len(plugin_checks)}")
+            for missing in missing_plugins[:5]:  # Show first 5
+                logger.warning(f"  - {missing}")
+            if len(missing_plugins) > 5:
+                logger.warning(f"  ... and {len(missing_plugins) - 5} more")
+        
+        if available_plugins:
+            logger.info(f"Available VEP plugins: {', '.join(available_plugins)}")
+        else:
+            logger.warning("No VEP plugin data files found - VEP will run with basic annotation only")
 
 
 class VEPRunner:
@@ -155,50 +195,30 @@ class VEPRunner:
         # NOTE: Plugin selection rationale in ./docs/VEP_PLUGINS.md also guides 
         # rule/tiering logic - high evidence plugins get higher weights in scoring
         self.default_plugins = [
-            # Core pathogenicity predictors
-            "dbNSFP,{plugins_dir}/dbNSFP5.1.gz,ALL",
-            "AlphaMissense,{plugins_dir}/AlphaMissense_hg38.tsv.gz",
-            "REVEL,{plugins_dir}/revel_all_chromosomes.tsv.gz",
-            "PrimateAI,{plugins_dir}/PrimateAI_scores_v0.2.tsv.gz",
-            "EVE,{plugins_dir}/eve_merged.vcf.gz",
-            "VARITY,{plugins_dir}/VARITY_R_LOO_v1.0.tsv.gz",
-            
-            # Additional pathogenicity tools
-            "BayesDel,{plugins_dir}/BayesDel_addAF_V1.2.tsv.gz",
-            "ClinPred,{plugins_dir}/clinpred_scores.tsv.gz", 
-            "FATHMM,{plugins_dir}/fathmm_scores.tsv.gz",
-            "FATHMM_MKL,{plugins_dir}/fathmm_mkl_scores.tsv.gz",
-            "PolyPhen_SIFT,{plugins_dir}/polyphen_sift.db",
+            # Core pathogenicity predictors (using actual available files)
+            "AlphaMissense,{refs_dir}/functional_predictions/plugin_data/protein_impact/AlphaMissense_gene_hg38.tsv.gz",
+            "REVEL,{refs_dir}/functional_predictions/plugin_data/pathogenicity/revel_with_transcript_ids",
+            "PrimateAI,{refs_dir}/functional_predictions/plugin_data/protein_impact/PrimateAI_scores_v0.2_hg38.tsv.gz",
             
             # Splicing predictors
-            "SpliceAI,{plugins_dir}/spliceai_scores.masked.snv.hg38.vcf.gz",
-            "dbscSNV,{plugins_dir}/dbscSNV1.1_GRCh38.txt.gz",
-            "SpliceRegion,{plugins_dir}/splice_region_annotations.gff.gz",
+            "SpliceAI,{refs_dir}/functional_predictions/plugin_data/splicing/spliceai_scores.raw.snv.hg38.vcf.gz",
             
-            # Population frequency and coverage
-            "gnomAD,{plugins_dir}/gnomad.genomes.v3.1.2.sites.vcf.bgz",
-            "gnomADc,{plugins_dir}/gnomad.exomes.coverage.summary.tsv.gz",
+            # Population frequency
+            "gnomAD,{refs_dir}/population_frequencies/gnomad/gnomad.exomes.v4.0.sites.chr1.vcf.bgz",
             
-            # Clinical and phenotype data
-            "ClinVar,{plugins_dir}/clinvar.vcf.gz,exact",
-            "Phenotypes,{plugins_dir}/phenotype_annotations.gff.gz",
+            # Gene constraint and loss-of-function
+            "LoFtool,{refs_dir}/functional_predictions/plugin_data/gene_constraint/LoFtool_scores.txt",
             
-            # Conservation and constraint
-            "Conservation,{plugins_dir}/conservation_scores.wig.gz",
-            "LoFtool,{plugins_dir}/LoFtool_scores.txt",
+            # Clinical evidence
+            "ClinVar,{refs_dir}/clinical_evidence/clinvar/clinvar.vcf.gz,exact",
             
-            # Literature and experimental evidence
-            "AVADA,{plugins_dir}/avada_annotations.tsv.gz",
-            "MaveDB,{plugins_dir}/mavedb_scores.tsv.gz",
+            # Additional pathogenicity tools (available but need proper format)
+            # "FATHMM,{refs_dir}/functional_predictions/plugin_data/pathogenicity/fathmm.v2.3.SQL.gz",
             
-            # Structural variants and regulatory
-            "StructuralVariantOverlap,{plugins_dir}/structural_variants.vcf.gz",
-            "UTRAnnotator,{plugins_dir}/utr_annotations.gff.gz",
-            "Enformer,{plugins_dir}/enformer_predictions.tsv.gz",
-            
-            # Quality control and ACMG
-            "GeneBe,{plugins_dir}/genebe_acmg.tsv.gz",
-            "NMD,{plugins_dir}/nmd_predictions.tsv.gz",
+            # Plugins requiring specific data files not yet available:
+            # "dbNSFP,{refs_dir}/functional_predictions/plugin_data/pathogenicity/dbNSFP5.1.gz,ALL",  
+            # "EVE,{refs_dir}/functional_predictions/plugin_data/protein_impact/eve_merged.vcf.gz",
+            # "VARITY,{refs_dir}/functional_predictions/plugin_data/protein_impact/VARITY_R_LOO_v1.0.tsv.gz",
         ]
     
     def annotate_vcf(self, 
@@ -304,15 +324,17 @@ class VEPRunner:
                              output_file: Path,
                              output_format: str,
                              plugins: List[str]) -> List[str]:
-        """Build Docker VEP command"""
+        """Build Docker VEP command with comprehensive data volume mappings"""
         
         input_dir = input_vcf.parent.absolute()
         output_dir = output_file.parent.absolute()
+        refs_dir = self.config.refs_dir.absolute()
         
         cmd = [
             "docker", "run", "--rm",
             "-v", f"{self.config.cache_dir}:/opt/vep/.vep:ro",
             "-v", f"{self.config.plugins_dir}:/opt/vep/plugins:ro",
+            "-v", f"{refs_dir}:/.refs:ro",  # Mount entire .refs for plugin data access
             "-v", f"{input_dir}:/input:ro",
             "-v", f"{output_dir}:/output",
             "-w", "/input",
@@ -327,7 +349,8 @@ class VEPRunner:
             output_format=output_format,
             plugins=plugins,
             cache_dir="/opt/vep/.vep",
-            plugins_dir="/opt/vep/plugins"
+            plugins_dir="/opt/vep/plugins",
+            refs_dir="/.refs"  # Docker-mounted refs directory
         ))
         
         return cmd
@@ -347,7 +370,8 @@ class VEPRunner:
             output_format=output_format,
             plugins=plugins,
             cache_dir=str(self.config.cache_dir),
-            plugins_dir=str(self.config.plugins_dir)
+            plugins_dir=str(self.config.plugins_dir),
+            refs_dir=str(self.config.refs_dir)
         ))
         
         return cmd
@@ -358,7 +382,8 @@ class VEPRunner:
                      output_format: str,
                      plugins: List[str],
                      cache_dir: str,
-                     plugins_dir: str) -> List[str]:
+                     plugins_dir: str,
+                     refs_dir: Optional[str] = None) -> List[str]:
         """Get VEP arguments for annotation"""
         
         args = [
@@ -391,12 +416,81 @@ class VEPRunner:
         elif output_format == "vcf":
             args.extend(["--vcf"])
         
-        # Add plugins
-        for plugin in plugins:
-            formatted_plugin = plugin.format(plugins_dir=plugins_dir)
+        # Add plugins with availability filtering
+        available_plugins = self._filter_available_plugins(plugins, refs_dir or str(self.config.refs_dir))
+        for plugin in available_plugins:
+            formatted_plugin = plugin.format(plugins_dir=plugins_dir, refs_dir=refs_dir or str(self.config.refs_dir))
             args.extend(["--plugin", formatted_plugin])
         
+        if len(available_plugins) < len(plugins):
+            logger.info(f"Using {len(available_plugins)}/{len(plugins)} available VEP plugins")
+        
         return args
+    
+    def _filter_available_plugins(self, plugins: List[str], refs_dir: str) -> List[str]:
+        """Filter plugins based on data file availability"""
+        
+        available_plugins = []
+        refs_path = Path(refs_dir)
+        
+        for plugin_spec in plugins:
+            plugin_parts = plugin_spec.split(",")
+            plugin_name = plugin_parts[0]
+            
+            if len(plugin_parts) > 1:
+                data_file_pattern = plugin_parts[1]
+                
+                # Check if data file exists (handle both absolute and relative paths)
+                if data_file_pattern.startswith(".refs/") or data_file_pattern.startswith("/.refs/"):
+                    # Remove leading .refs/ or /.refs/ and rebuild path
+                    relative_path = data_file_pattern.replace("/.refs/", "").replace(".refs/", "")
+                    data_file_path = refs_path / relative_path
+                else:
+                    data_file_path = Path(data_file_pattern)
+                
+                if data_file_path.exists():
+                    available_plugins.append(plugin_spec)
+                else:
+                    logger.debug(f"Skipping plugin {plugin_name} - data file not found: {data_file_path}")
+            else:
+                # Plugin with no data file requirement
+                available_plugins.append(plugin_spec)
+        
+        return available_plugins
+    
+    def _select_best_transcript(self, transcript_consequences: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Select the best transcript using prioritized criteria (MANE Select > Canonical > First)"""
+        
+        if not transcript_consequences:
+            return None
+        
+        # Priority 1: MANE Select transcript
+        for tc in transcript_consequences:
+            if tc.get("mane_select"):
+                logger.debug(f"Selected MANE Select transcript: {tc.get('transcript_id')}")
+                return tc
+        
+        # Priority 2: MANE Plus Clinical transcript
+        for tc in transcript_consequences:
+            if tc.get("mane_plus_clinical"):
+                logger.debug(f"Selected MANE Plus Clinical transcript: {tc.get('transcript_id')}")
+                return tc
+        
+        # Priority 3: Canonical transcript
+        for tc in transcript_consequences:
+            if tc.get("canonical") == 1:
+                logger.debug(f"Selected canonical transcript: {tc.get('transcript_id')}")
+                return tc
+        
+        # Priority 4: Ensembl canonical transcript
+        for tc in transcript_consequences:
+            if tc.get("gene_symbol_source") == "HGNC" and tc.get("biotype") == "protein_coding":
+                logger.debug(f"Selected protein-coding transcript: {tc.get('transcript_id')}")
+                return tc
+        
+        # Priority 5: First available transcript
+        logger.debug(f"Selected first available transcript: {transcript_consequences[0].get('transcript_id')}")
+        return transcript_consequences[0]
     
     def _parse_vep_json_to_annotations(self, vep_json_file: Path) -> List[VariantAnnotation]:
         """Parse VEP JSON output to VariantAnnotation objects"""
@@ -456,15 +550,8 @@ class VEPRunner:
             # Get transcript consequences
             transcript_consequences = vep_variant.get("transcript_consequences", [])
             
-            # Find the canonical transcript or the first one
-            canonical_consequence = None
-            for tc in transcript_consequences:
-                if tc.get("canonical") == 1:
-                    canonical_consequence = tc
-                    break
-            
-            if not canonical_consequence and transcript_consequences:
-                canonical_consequence = transcript_consequences[0]
+            # Find the best transcript using prioritized selection
+            canonical_consequence = self._select_best_transcript(transcript_consequences)
             
             # Extract annotation details
             gene_symbol = ""

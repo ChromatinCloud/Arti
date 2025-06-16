@@ -21,3 +21,6 @@ vcfpy = "^0.13"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2"
 ruff   = "^0.4"
+
+[tool.poetry.scripts]
+annotation-engine = "annotation_engine.cli:main"

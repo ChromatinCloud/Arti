@@ -342,14 +342,32 @@ annotation-engine/
 │   ├── ANNOTATION_BLUEPRINT.md   # Detailed clinical requirements
 │   ├── KB_DOWNLOAD_BLUEPRINT.md  # Knowledge base documentation
 │   └── ROADMAP.md                # Development phases
-└── .refs/                        # Downloaded knowledge bases (33 databases)
-    ├── clinvar/                  # Clinical significance data
-    ├── civic/                    # Clinical evidence summaries
-    ├── cancer_hotspots/          # Recurrent mutation data
-    ├── gnomad/                   # Population frequencies
-    ├── gene_mappings/            # Gene symbol standardization
-    ├── biomarkers/               # Clinical thresholds
-    └── [28 more subdirectories]  # Complete knowledge base collection
+└── .refs/                        # Downloaded knowledge bases (organized by purpose)
+    ├── clinical_evidence/        # Clinical significance and evidence
+    │   ├── clinvar/             # ClinVar VCF and TSV files
+    │   ├── civic/               # CIViC variant and evidence files
+    │   ├── oncokb/              # OncoKB gene lists and annotations
+    │   ├── clingen/             # ClinGen dosage sensitivity
+    │   └── biomarkers/          # Clinical biomarker thresholds
+    ├── population_frequencies/   # Population allele frequencies
+    │   ├── gnomad/              # gnomAD exomes and genomes
+    │   ├── dbsnp/               # dbSNP common variants
+    │   └── exac/                # ExAC population data
+    ├── functional_predictions/   # VEP and functional prediction tools
+    │   ├── vep_cache/           # VEP offline cache (15-20GB)
+    │   ├── vep_plugins/         # VEP plugin source code
+    │   └── plugin_data/         # Plugin data files by type
+    ├── cancer_signatures/        # Cancer-specific databases
+    │   ├── hotspots/            # Cancer hotspots (MSK, CIViC, 3D, OncoVI)
+    │   ├── cosmic/              # COSMIC Cancer Gene Census
+    │   ├── tcga/                # TCGA somatic mutations
+    │   └── depmap/              # DepMap cell line data
+    ├── literature_mining/        # Literature-mined data
+    ├── reference_assemblies/     # Genome reference data
+    ├── structural_variants/      # Structural variant annotations
+    ├── vep_setup/               # VEP installation files
+    ├── pharmacogenomics/        # Drug-gene interactions
+    └── sample_data/             # Test and example data
 ```
 
 For complete documentation of all 33 knowledge bases, see `docs/KB_DOWNLOAD_BLUEPRINT.md`.

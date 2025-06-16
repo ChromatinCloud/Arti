@@ -27,7 +27,7 @@ class TestVEPConfiguration:
         """Test default VEP configuration"""
         config = VEPConfiguration()
         
-        assert config.assembly == "GRCh37"
+        assert config.assembly == "GRCh38"
         assert config.use_docker == True
         assert config.docker_image == "ensemblorg/ensembl-vep:release_114.1"
         assert config.refs_dir.name == ".refs"
@@ -68,7 +68,7 @@ class TestVEPRunner:
     def setup_method(self):
         """Setup test fixtures"""
         self.test_vcf_content = '''##fileformat=VCFv4.2
-##reference=GRCh37
+##reference=GRCh38
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
@@ -85,7 +85,7 @@ class TestVEPRunner:
                 "id": "17_7674220_G/A",
                 "input": "17\t7674220\t.\tG\tA\t100\tPASS\tDP=50;AF=0.45",
                 "most_severe_consequence": "missense_variant",
-                "assembly_name": "GRCh37",
+                "assembly_name": "GRCh38",
                 "transcript_consequences": [
                     {
                         "gene_symbol": "TP53",

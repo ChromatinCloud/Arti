@@ -1,0 +1,187 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "analysis_type": "TUMOR_ONLY",
+    "genome_build": "GRCh38",
+    "annotation_date": "2025-06-16T19:04:58.112618",
+    "case_uid": "TEST_001",
+    "patient_uid": "TEST_001",
+    "cancer_type": "melanoma",
+    "tissue_type": "primary_tumor",
+    "guidelines": [
+      "AMP_ACMG",
+      "CGC_VICC",
+      "ONCOKB"
+    ],
+    "input_files": {
+      "tumor_vcf": "example_input/proper_test.vcf",
+      "normal_vcf": null
+    },
+    "quality_filters": {
+      "min_depth": 10,
+      "min_vaf": 0.05,
+      "skip_qc": false
+    },
+    "total_variants": 4,
+    "knowledge_bases": {
+      "oncokb": "2024-01",
+      "civic": "2024-01",
+      "oncovi": "2024-01",
+      "msk_hotspots": "v2"
+    }
+  },
+  "variants": [
+    {
+      "variant_id": "17_7674220_G_Substitution(type_='SNV', value='A')",
+      "genomic_location": {
+        "chromosome": "17",
+        "position": 7674220,
+        "reference": "G",
+        "alternate": "Substitution(type_='SNV', value='A')"
+      },
+      "gene_annotation": {
+        "gene_symbol": "TP53",
+        "transcript_id": "ENST00000269305",
+        "hgvs_c": "c.743G>A",
+        "hgvs_p": "p.Arg248Gln",
+        "consequence": [
+          "missense_variant"
+        ]
+      },
+      "quality_metrics": {
+        "vaf": 0.46,
+        "total_depth": 50
+      },
+      "clinical_classification": {
+        "amp_tier": "Tier IV",
+        "vicc_oncogenicity": "Likely Oncogenic",
+        "oncokb_level": null,
+        "confidence_score": 0.34
+      },
+      "metadata": {
+        "analysis_type": "TUMOR_ONLY",
+        "cancer_type": "melanoma",
+        "case_uid": "TEST_001",
+        "genome_build": "GRCh38",
+        "processing_date": "2025-06-16T19:04:58.112262"
+      }
+    },
+    {
+      "variant_id": "7_140753336_T_Substitution(type_='SNV', value='A')",
+      "genomic_location": {
+        "chromosome": "7",
+        "position": 140753336,
+        "reference": "T",
+        "alternate": "Substitution(type_='SNV', value='A')"
+      },
+      "gene_annotation": {
+        "gene_symbol": "BRAF",
+        "transcript_id": "ENST00000288602",
+        "hgvs_c": "c.1799T>A",
+        "hgvs_p": "p.Val600Glu",
+        "consequence": [
+          "missense_variant"
+        ]
+      },
+      "quality_metrics": {
+        "vaf": 0.5111111111111111,
+        "total_depth": 45
+      },
+      "clinical_classification": {
+        "amp_tier": "Tier IV",
+        "vicc_oncogenicity": "Likely Oncogenic",
+        "oncokb_level": null,
+        "confidence_score": 0.34
+      },
+      "metadata": {
+        "analysis_type": "TUMOR_ONLY",
+        "cancer_type": "melanoma",
+        "case_uid": "TEST_001",
+        "genome_build": "GRCh38",
+        "processing_date": "2025-06-16T19:04:58.112367"
+      }
+    },
+    {
+      "variant_id": "12_25245350_C_Substitution(type_='SNV', value='T')",
+      "genomic_location": {
+        "chromosome": "12",
+        "position": 25245350,
+        "reference": "C",
+        "alternate": "Substitution(type_='SNV', value='T')"
+      },
+      "gene_annotation": {
+        "gene_symbol": "KRAS",
+        "transcript_id": "ENST00000256078",
+        "hgvs_c": "c.34G>T",
+        "hgvs_p": "p.Gly12Cys",
+        "consequence": [
+          "missense_variant"
+        ]
+      },
+      "quality_metrics": {
+        "vaf": 0.42105263157894735,
+        "total_depth": 38
+      },
+      "clinical_classification": {
+        "amp_tier": "Tier IV",
+        "vicc_oncogenicity": "Likely Oncogenic",
+        "oncokb_level": null,
+        "confidence_score": 0.34
+      },
+      "metadata": {
+        "analysis_type": "TUMOR_ONLY",
+        "cancer_type": "melanoma",
+        "case_uid": "TEST_001",
+        "genome_build": "GRCh38",
+        "processing_date": "2025-06-16T19:04:58.112442"
+      }
+    },
+    {
+      "variant_id": "3_178952085_A_Substitution(type_='SNV', value='G')",
+      "genomic_location": {
+        "chromosome": "3",
+        "position": 178952085,
+        "reference": "A",
+        "alternate": "Substitution(type_='SNV', value='G')"
+      },
+      "gene_annotation": {
+        "gene_symbol": "PIK3CA",
+        "transcript_id": "ENST00000263967",
+        "hgvs_c": "c.3140A>G",
+        "hgvs_p": "p.His1047Arg",
+        "consequence": [
+          "missense_variant"
+        ]
+      },
+      "quality_metrics": {
+        "vaf": 0.38181818181818183,
+        "total_depth": 55
+      },
+      "clinical_classification": {
+        "amp_tier": "Tier IV",
+        "vicc_oncogenicity": "Likely Oncogenic",
+        "oncokb_level": null,
+        "confidence_score": 0.34
+      },
+      "metadata": {
+        "analysis_type": "TUMOR_ONLY",
+        "cancer_type": "melanoma",
+        "case_uid": "TEST_001",
+        "genome_build": "GRCh38",
+        "processing_date": "2025-06-16T19:04:58.112512"
+      }
+    }
+  ],
+  "summary": {
+    "variants_by_tier": {
+      "Tier IV": 4
+    },
+    "variants_by_gene": {
+      "TP53": 1,
+      "BRAF": 1,
+      "KRAS": 1,
+      "PIK3CA": 1
+    },
+    "high_confidence_variants": []
+  }
+}

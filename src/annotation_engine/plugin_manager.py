@@ -38,8 +38,8 @@ class VEPPluginManager:
         """Find VEP plugins directory."""
         # Check common locations
         candidates = [
-            ".refs/vep/plugins",
-            ".refs/vep/ensembl-vep/Plugins",
+            ".refs/functional_predictions/vep_plugins",
+            ".refs/vep_setup/ensembl-vep/Plugins",
             os.path.expanduser("~/.vep/Plugins")
         ]
         
@@ -87,8 +87,8 @@ class VEPPluginManager:
         if plugin_name == "dbNSFP":
             # Look for dbNSFP data files
             candidates = [
-                ".refs/dbnsfp/dbNSFP_variant.txt.gz",
-                ".refs/dbnsfp/dbNSFP4.6a_variant.txt.gz",
+                ".refs/functional_predictions/plugin_data/pathogenicity/dbNSFP5.1.gz",
+                ".refs/functional_predictions/plugin_data/pathogenicity/dbNSFP4.6a_variant.txt.gz",
                 f"{os.path.expanduser('~')}/.vep/dbNSFP.gz"
             ]
             
@@ -100,7 +100,7 @@ class VEPPluginManager:
         elif plugin_name == "AlphaMissense":
             # Look for AlphaMissense data files
             candidates = [
-                ".refs/alphamissense/AlphaMissense_hg38.tsv.gz",
+                ".refs/functional_predictions/plugin_data/protein_impact/AlphaMissense_hg38.tsv.gz",
                 f"{os.path.expanduser('~')}/.vep/AlphaMissense_hg38.tsv.gz"
             ]
             
@@ -112,7 +112,7 @@ class VEPPluginManager:
         elif plugin_name == "SpliceAI":
             # Look for SpliceAI data files
             candidates = [
-                ".refs/spliceai/spliceai_scores.raw.snv.hg38.vcf.gz",
+                ".refs/functional_predictions/plugin_data/splicing/spliceai_scores.masked.snv.hg38.vcf.gz",
                 f"{os.path.expanduser('~')}/.vep/spliceai_scores.raw.snv.hg38.vcf.gz"
             ]
             

@@ -6,9 +6,12 @@ import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.annotation_engine.vep_runner import VEPRunner, VEPConfiguration
-from src.annotation_engine.evidence_aggregator import EvidenceAggregator
-from src.annotation_engine.models import VariantAnnotation, AnalysisType
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from annotation_engine.vep_runner import VEPRunner, VEPConfiguration
+from annotation_engine.evidence_aggregator import EvidenceAggregator
+from annotation_engine.models import VariantAnnotation, AnalysisType
 
 
 class TestPluginIntegration:

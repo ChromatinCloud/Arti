@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REFS_DIR="$REPO_ROOT/.refs"
+VEP_CACHE_DIR="$REFS_DIR/vep/cache"
+VEP_PLUGINS_DIR="$REFS_DIR/vep/plugins"
+DOCKER_TAG="release_114.1"
+
+INPUT_DIR="$(pwd)"
+OUTPUT_DIR="$(pwd)"
+
+for arg in "$@"; do
+  [[ -f "$arg" ]] && { INPUT_DIR="$(cd "$(dirname "$arg")" && pwd)"; break; }
+done
+
+docker run --rm \
+  -v "$VEP_CACHE_DIR:/opt/vep/.vep:ro" \
+  -v "$VEP_PLUGINS_DIR:/opt/vep/plugins:ro" \
+  -v "$INPUT_DIR:/data" \
+  -v "$OUTPUT_DIR:/output" \
+  -w /data \
+  "ensemblorg/ensembl-vep:${DOCKER_TAG}" \
+  vep \
+  --cache \
+  --offline \
+  --dir_cache /opt/vep/.vep \
+  --dir_plugins /opt/vep/plugins \
+  --fasta /opt/vep/.vep/homo_sapiens/114_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+  "$@"

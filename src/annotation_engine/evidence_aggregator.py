@@ -53,6 +53,7 @@ class KnowledgeBaseLoader:
         # Load OncoKB data
         _KB_CACHE['oncokb_genes'] = self._load_oncokb_genes()
         _KB_CACHE['oncokb_variants'] = self._load_oncokb_variants()
+        _KB_CACHE['oncokb_evidence_levels'] = self._load_oncokb_evidence_levels()
         
         # Load CIViC data
         _KB_CACHE['civic_variants'] = self._load_civic_variants()
@@ -71,41 +72,152 @@ class KnowledgeBaseLoader:
         # Load functional prediction data
         _KB_CACHE['grantham_matrix'] = self._load_grantham_matrix()
         
+        # Load OncoTree and ClinVar data
+        _KB_CACHE['oncotree_data'] = self._load_oncotree_data()
+        _KB_CACHE['clinvar_data'] = self._load_clinvar_data()
+        
         # Load population frequency sources (handled by API clients)
         
         _KB_LOADED = True
         logger.info("Knowledge bases loaded successfully")
     
     def _load_oncokb_genes(self) -> Dict[str, Any]:
-        """Load OncoKB gene annotations"""
-        oncokb_path = self.kb_base_path / "oncokb"
+        """Load OncoKB gene annotations from comprehensive curated genes file"""
+        oncokb_path = self.kb_base_path / "clinical_evidence" / "oncokb"
         
         genes = {}
-        if (oncokb_path / "cancerGeneList.txt").exists():
-            df = pd.read_csv(oncokb_path / "cancerGeneList.txt", sep='\t')
-            for _, row in df.iterrows():
-                gene = row['Hugo Symbol']
-                genes[gene] = {
-                    'is_oncogene': 'Oncogene' in str(row.get('Oncogene', '')),
-                    'is_tsg': 'TSG' in str(row.get('TSG', '')),
-                    'oncokb_annotated': True
-                }
+        
+        # Load from comprehensive curated_genes.tsv first (priority)
+        if (oncokb_path / "curated_genes.tsv").exists():
+            try:
+                df = pd.read_csv(oncokb_path / "curated_genes.tsv", sep='\t')
+                for _, row in df.iterrows():
+                    gene = row['hugoSymbol']
+                    genes[gene] = {
+                        'is_oncogene': str(row.get('oncogene', '')).upper() == 'TRUE',
+                        'is_tsg': str(row.get('tsg', '')).upper() == 'TRUE',
+                        'oncokb_annotated': True,
+                        'highest_sensitive_level': row.get('highestSensitiveLevel', ''),
+                        'highest_resistance_level': row.get('highestResistanceLevel', ''),
+                        'summary': row.get('summary', ''),
+                        'background': row.get('background', ''),
+                        'grch38_transcript': row.get('grch38Isoform', ''),
+                        'grch38_refseq': row.get('grch38RefSeq', '')
+                    }
+                logger.info(f"Loaded {len(genes)} OncoKB curated genes")
+            except Exception as e:
+                logger.warning(f"Failed to load OncoKB curated genes: {e}")
+        
+        # Fallback to basic oncokb_genes.txt if curated file not available
+        elif (oncokb_path / "oncokb_genes.txt").exists():
+            try:
+                df = pd.read_csv(oncokb_path / "oncokb_genes.txt", sep='\t')
+                for _, row in df.iterrows():
+                    gene = row['Hugo Symbol']
+                    genes[gene] = {
+                        'is_oncogene': 'Oncogene' in str(row.get('Oncogene', '')),
+                        'is_tsg': 'TSG' in str(row.get('TSG', '')),
+                        'oncokb_annotated': True
+                    }
+                logger.info(f"Loaded {len(genes)} OncoKB basic genes (fallback)")
+            except Exception as e:
+                logger.warning(f"Failed to load OncoKB basic genes: {e}")
         
         return genes
     
-    def _load_oncokb_variants(self) -> List[Dict[str, Any]]:
-        """Load OncoKB variant annotations"""
-        # This would load from OncoKB allAnnotatedVariants.txt if available
-        # For now, return empty list - will be populated by API calls
-        return []
+    def _load_oncokb_variants(self) -> Dict[str, Any]:
+        """Load OncoKB variant-drug-cancer associations from biomarker file"""
+        oncokb_path = self.kb_base_path / "clinical_evidence" / "oncokb"
+        
+        variants = {}
+        
+        # Load biomarker drug associations
+        if (oncokb_path / "oncokb_biomarker_drug_associations.tsv").exists():
+            try:
+                df = pd.read_csv(oncokb_path / "oncokb_biomarker_drug_associations.tsv", sep='\t')
+                
+                for _, row in df.iterrows():
+                    gene = row['Gene']
+                    alteration = row['Alterations']
+                    cancer_types = row['Cancer Types']
+                    drugs = row['Drugs (for therapeutic implications only)']
+                    level = row['Level']
+                    
+                    # Create variant key
+                    variant_key = f"{gene}:{alteration}"
+                    
+                    if variant_key not in variants:
+                        variants[variant_key] = {
+                            'gene': gene,
+                            'alteration': alteration,
+                            'evidence_items': []
+                        }
+                    
+                    # Add evidence item
+                    evidence_item = {
+                        'level': level,
+                        'cancer_type': cancer_types,
+                        'drugs': drugs,
+                        'therapeutic_level': f"LEVEL_{level}" if level in ['1', '2', '3A', '3B', '4'] else f"LEVEL_{level}"
+                    }
+                    
+                    variants[variant_key]['evidence_items'].append(evidence_item)
+                
+                logger.info(f"Loaded {len(variants)} OncoKB variant-drug associations")
+                
+            except Exception as e:
+                logger.warning(f"Failed to load OncoKB biomarker associations: {e}")
+        
+        return variants
+    
+    def _load_oncokb_evidence_levels(self) -> Dict[str, Any]:
+        """Load OncoKB evidence level definitions"""
+        oncokb_path = self.kb_base_path / "clinical_evidence" / "oncokb"
+        
+        levels = {}
+        
+        if (oncokb_path / "levels_of_evidence.tsv").exists():
+            try:
+                df = pd.read_csv(oncokb_path / "levels_of_evidence.tsv", sep='\t')
+                
+                for _, row in df.iterrows():
+                    level = row['levelOfEvidence']
+                    levels[level] = {
+                        'description': row['description'],
+                        'html_description': row.get('htmlDescription', ''),
+                        'color': row.get('colorHex', ''),
+                        'therapeutic_significance': self._categorize_oncokb_level(level)
+                    }
+                
+                logger.info(f"Loaded {len(levels)} OncoKB evidence levels")
+                
+            except Exception as e:
+                logger.warning(f"Failed to load OncoKB evidence levels: {e}")
+        
+        return levels
+    
+    def _categorize_oncokb_level(self, level: str) -> str:
+        """Categorize OncoKB level for therapeutic significance"""
+        if level in ['LEVEL_1', 'LEVEL_2']:
+            return 'high_therapeutic'
+        elif level in ['LEVEL_3A', 'LEVEL_3B']:
+            return 'moderate_therapeutic'  
+        elif level == 'LEVEL_4':
+            return 'biological_evidence'
+        elif level.startswith('LEVEL_R'):
+            return 'resistance'
+        elif level.startswith('LEVEL_Dx'):
+            return 'diagnostic'
+        else:
+            return 'other'
     
     def _load_civic_variants(self) -> Dict[str, Any]:
         """Load CIViC variant summaries"""
-        civic_path = self.kb_base_path / "civic"
+        civic_path = self.kb_base_path / "clinical_evidence" / "civic"
         variants = {}
         
-        if (civic_path / "01-Jan-2024-VariantSummaries.tsv").exists():
-            df = pd.read_csv(civic_path / "01-Jan-2024-VariantSummaries.tsv", sep='\t')
+        if (civic_path / "civic_variant_summaries.tsv").exists():
+            df = pd.read_csv(civic_path / "civic_variant_summaries.tsv", sep='\t')
             for _, row in df.iterrows():
                 variant_id = row.get('variant_id')
                 if variant_id:
@@ -120,11 +232,11 @@ class KnowledgeBaseLoader:
     
     def _load_civic_evidence(self) -> Dict[str, Any]:
         """Load CIViC evidence items"""
-        civic_path = self.kb_base_path / "civic"
+        civic_path = self.kb_base_path / "clinical_evidence" / "civic"
         evidence = {}
         
-        if (civic_path / "01-Jan-2024-ClinicalEvidenceSummaries.tsv").exists():
-            df = pd.read_csv(civic_path / "01-Jan-2024-ClinicalEvidenceSummaries.tsv", sep='\t')
+        if (civic_path / "civic_variants.tsv").exists():
+            df = pd.read_csv(civic_path / "civic_variants.tsv", sep='\t')
             for _, row in df.iterrows():
                 evidence_id = row.get('evidence_id')
                 if evidence_id:
@@ -142,40 +254,44 @@ class KnowledgeBaseLoader:
     
     def _load_cosmic_cgc(self) -> Dict[str, Any]:
         """Load COSMIC Cancer Gene Census"""
-        cosmic_path = self.kb_base_path / "cosmic"
+        cosmic_path = self.kb_base_path / "cancer_genes" / "cosmic_cgc"
         genes = {}
         
-        if (cosmic_path / "cancer_gene_census.csv").exists():
-            df = pd.read_csv(cosmic_path / "cancer_gene_census.csv")
+        if (cosmic_path / "cancer_hotspots.tsv.gz").exists():
+            try:
+                df = pd.read_csv(cosmic_path / "cancer_hotspots.tsv.gz", sep='\t', compression='gzip')
+            except Exception as e:
+                logger.warning(f"Failed to load COSMIC CGC file: {e}")
+                return genes
             for _, row in df.iterrows():
-                gene = row['Gene Symbol']
+                gene = row['GENE_SYMBOL']
                 genes[gene] = {
-                    'role_in_cancer': row.get('Role in Cancer', ''),
-                    'mutation_types': row.get('Mutation Types', ''),
-                    'tumour_types_somatic': row.get('Tumour Types(Somatic)', ''),
-                    'tumour_types_germline': row.get('Tumour Types(Germline)', ''),
-                    'is_oncogene': 'oncogene' in str(row.get('Role in Cancer', '')).lower(),
-                    'is_tsg': 'tsg' in str(row.get('Role in Cancer', '')).lower()
+                    'role_in_cancer': row.get('ROLE_IN_CANCER', ''),
+                    'mutation_types': row.get('MUTATION_TYPES', ''),
+                    'tumour_types_somatic': row.get('TUMOUR_TYPES_SOMATIC', ''),
+                    'tumour_types_germline': row.get('TUMOUR_TYPES_GERMLINE', ''),
+                    'is_oncogene': 'oncogene' in str(row.get('ROLE_IN_CANCER', '')).lower(),
+                    'is_tsg': 'tsg' in str(row.get('ROLE_IN_CANCER', '')).lower()
                 }
         
         return genes
     
     def _load_cosmic_hotspots(self) -> List[Dict[str, Any]]:
         """Load COSMIC hotspots data"""
-        cosmic_path = self.kb_base_path / "cancer_hotspots"
+        cosmic_path = self.kb_base_path / "hotspots" / "msk_hotspots"
         hotspots = []
         
         # Load from multiple hotspot sources
         hotspot_files = [
-            "hotspots_v2.xls",
-            "hotspots_v2_indels.xls"
+            "MSK-SNV-hotspots-v2.tsv.gz",
+            "MSK-INDEL-hotspots-v2.tsv.gz"
         ]
         
         for filename in hotspot_files:
             filepath = cosmic_path / filename
             if filepath.exists():
                 try:
-                    df = pd.read_excel(filepath)
+                    df = pd.read_csv(filepath, sep='\t', compression='gzip')
                     for _, row in df.iterrows():
                         hotspots.append({
                             'gene': row.get('Hugo_Symbol'),
@@ -193,7 +309,7 @@ class KnowledgeBaseLoader:
     
     def _load_oncovi_tumor_suppressors(self) -> Set[str]:
         """Load OncoVI tumor suppressor gene list"""
-        oncovi_path = self.kb_base_path / "oncovi"
+        oncovi_path = self.kb_base_path / "cancer_genes" / "oncovi_lists"
         tsg_genes = set()
         
         if (oncovi_path / "tumor_suppressors.txt").exists():
@@ -207,7 +323,7 @@ class KnowledgeBaseLoader:
     
     def _load_oncovi_oncogenes(self) -> Set[str]:
         """Load OncoVI oncogene list"""
-        oncovi_path = self.kb_base_path / "oncovi"
+        oncovi_path = self.kb_base_path / "cancer_genes" / "oncovi_lists"
         oncogenes = set()
         
         if (oncovi_path / "oncogenes.txt").exists():
@@ -221,7 +337,7 @@ class KnowledgeBaseLoader:
     
     def _load_oncovi_hotspots(self) -> Dict[str, Any]:
         """Load OncoVI hotspot data"""
-        oncovi_path = self.kb_base_path / "oncovi"
+        oncovi_path = self.kb_base_path / "hotspots" / "oncovi_hotspots"
         hotspots = {}
         
         # Load single residue hotspots
@@ -253,11 +369,11 @@ class KnowledgeBaseLoader:
     
     def _load_oncovi_domains(self) -> Dict[str, Any]:
         """Load OncoVI protein domain annotations"""
-        oncovi_path = self.kb_base_path / "oncovi"
+        oncovi_path = self.kb_base_path / "functional_predictions" / "plugin_data" / "protein_domains"
         domains = {}
         
-        if (oncovi_path / "protein_domains.tsv").exists():
-            df = pd.read_csv(oncovi_path / "protein_domains.tsv", sep='\t')
+        if (oncovi_path / "oncovi_domains.tsv").exists():
+            df = pd.read_csv(oncovi_path / "oncovi_domains.tsv", sep='\t')
             for _, row in df.iterrows():
                 gene = row['gene']
                 if gene not in domains:
@@ -273,17 +389,155 @@ class KnowledgeBaseLoader:
     
     def _load_grantham_matrix(self) -> Dict[Tuple[str, str], float]:
         """Load Grantham distance matrix"""
-        oncovi_path = self.kb_base_path / "oncovi"
+        oncovi_path = self.kb_base_path / "functional_predictions" / "plugin_data" / "amino_acid_matrices"
         matrix = {}
         
-        if (oncovi_path / "grantham_distance_matrix.txt").exists():
-            with open(oncovi_path / "grantham_distance_matrix.txt", 'r') as f:
+        if (oncovi_path / "grantham_distance.txt").exists():
+            with open(oncovi_path / "grantham_distance.txt", 'r') as f:
                 lines = f.readlines()
                 # Parse the matrix format
                 # This would depend on the exact format of the file
                 pass
         
         return matrix
+    
+    def _load_oncotree_data(self) -> Dict[str, Any]:
+        """Load OncoTree cancer type hierarchy from efficient TSV format"""
+        oncotree_dir = self.kb_base_path / "clinical_context" / "oncotree"
+        oncotree_tsv = oncotree_dir / "oncotree.tsv"
+        
+        if not oncotree_tsv.exists():
+            logger.warning(f"OncoTree TSV file not found: {oncotree_tsv}")
+            return {}
+        
+        try:
+            import pandas as pd
+            
+            # Load main OncoTree TSV file
+            df = pd.read_csv(oncotree_tsv, sep='\t')
+            
+            # Create lookup maps for efficient cancer type validation and hierarchy
+            code_map = {}
+            hierarchy_map = {}
+            tissue_map = {}
+            
+            for _, row in df.iterrows():
+                code = row['code']
+                parent = row['parent'] if pd.notna(row['parent']) and row['parent'] != '' else None
+                tissue = row['tissue']
+                
+                code_map[code] = {
+                    'name': row['name'],
+                    'main_type': row['mainType'],
+                    'tissue': tissue,
+                    'level': row['level'],
+                    'parent': parent,
+                    'external_references': row.get('external_references', '')
+                }
+                
+                # Build hierarchy chain
+                if parent and parent in code_map:
+                    hierarchy_map[code] = hierarchy_map.get(parent, []) + [parent]
+                else:
+                    hierarchy_map[code] = []
+                
+                # Group by tissue for efficient tissue-specific lookups
+                if tissue not in tissue_map:
+                    tissue_map[tissue] = []
+                tissue_map[tissue].append(code)
+            
+            # Load tissue-specific files for enhanced lookup (optional)
+            tissue_files = {}
+            for tissue_file in oncotree_dir.glob("oncotree_*.tsv"):
+                tissue_name = tissue_file.stem.replace('oncotree_', '')
+                if tissue_file.exists():
+                    tissue_df = pd.read_csv(tissue_file, sep='\t')
+                    tissue_files[tissue_name] = tissue_df.to_dict('records')
+            
+            logger.info(f"Loaded OncoTree data: {len(code_map)} cancer types, {len(tissue_files)} tissue files")
+            return {
+                'code_map': code_map,
+                'hierarchy_map': hierarchy_map,
+                'tissue_map': tissue_map,
+                'tissue_files': tissue_files,
+                'total_codes': len(code_map)
+            }
+            
+        except Exception as e:
+            logger.warning(f"Failed to load OncoTree TSV data: {e}")
+            return {}
+    
+    def _load_clinvar_data(self) -> Dict[str, Any]:
+        """Load ClinVar pathogenicity data for germline filtering and evidence"""
+        clinvar_path = self.kb_base_path / "clinical_evidence" / "clinvar" / "variant_summary.txt.gz"
+        
+        if not clinvar_path.exists():
+            logger.warning(f"ClinVar file not found: {clinvar_path}")
+            return {}
+        
+        try:
+            import pandas as pd
+            
+            # Load variant summary data
+            df = pd.read_csv(clinvar_path, sep='\t', compression='gzip', 
+                           usecols=['GeneSymbol', 'ClinicalSignificance', 'ReviewStatus', 
+                                   'PhenotypeList', 'Assembly', 'Chromosome', 'Start', 'Stop',
+                                   'ReferenceAllele', 'AlternateAllele', 'Type', 'Name'])
+            
+            # Filter for GRCh38 and pathogenic variants
+            df_grch38 = df[df['Assembly'] == 'GRCh38']
+            
+            # Create pathogenic variant lookup
+            pathogenic_variants = {}
+            benign_variants = {}
+            
+            for _, row in df_grch38.iterrows():
+                gene = row.get('GeneSymbol')
+                if pd.isna(gene) or gene == '-':
+                    continue
+                
+                significance = str(row.get('ClinicalSignificance', '')).lower()
+                
+                # Map ClinVar significance to evidence codes
+                if any(term in significance for term in ['pathogenic', 'likely_pathogenic']):
+                    if gene not in pathogenic_variants:
+                        pathogenic_variants[gene] = []
+                    pathogenic_variants[gene].append({
+                        'significance': significance,
+                        'review_status': row.get('ReviewStatus', ''),
+                        'phenotype': row.get('PhenotypeList', ''),
+                        'chromosome': row.get('Chromosome', ''),
+                        'position': row.get('Start', ''),
+                        'ref': row.get('ReferenceAllele', ''),
+                        'alt': row.get('AlternateAllele', ''),
+                        'variant_type': row.get('Type', ''),
+                        'name': row.get('Name', '')
+                    })
+                
+                elif any(term in significance for term in ['benign', 'likely_benign']):
+                    if gene not in benign_variants:
+                        benign_variants[gene] = []
+                    benign_variants[gene].append({
+                        'significance': significance,
+                        'review_status': row.get('ReviewStatus', ''),
+                        'chromosome': row.get('Chromosome', ''),
+                        'position': row.get('Start', ''),
+                        'ref': row.get('ReferenceAllele', ''),
+                        'alt': row.get('AlternateAllele', '')
+                    })
+            
+            logger.info(f"Loaded ClinVar data: {len(pathogenic_variants)} genes with pathogenic variants, "
+                       f"{len(benign_variants)} genes with benign variants")
+            
+            return {
+                'pathogenic_variants': pathogenic_variants,
+                'benign_variants': benign_variants,
+                'total_variants': len(df_grch38)
+            }
+            
+        except Exception as e:
+            logger.warning(f"Failed to load ClinVar data: {e}")
+            return {}
 
 
 class DynamicSomaticConfidenceCalculator:
@@ -579,15 +833,16 @@ class DynamicSomaticConfidenceCalculator:
         return max(0.1, min(1.0, confidence))
 
 
+
 class EvidenceAggregator:
     """Main class for aggregating evidence from knowledge bases"""
     
     def __init__(self, kb_base_path: str = ".refs"):
         self.loader = KnowledgeBaseLoader(kb_base_path)
-        self.loader.load_all_kbs()
+        # Load KBs on first use to avoid startup errors
         self.dsc_calculator = DynamicSomaticConfidenceCalculator()
     
-    def aggregate_evidence(self, variant_annotation: VariantAnnotation, cancer_type: str, 
+    def aggregate_evidence(self, variant_annotation: VariantAnnotation, cancer_type: str = "unknown", 
                          analysis_type: AnalysisType = AnalysisType.TUMOR_ONLY) -> List[Evidence]:
         """
         Aggregate evidence from all knowledge bases for a variant
@@ -600,6 +855,14 @@ class EvidenceAggregator:
         Returns:
             List of evidence items supporting classification
         """
+        # Load knowledge bases on first use
+        global _KB_LOADED
+        if not _KB_LOADED:
+            try:
+                self.loader.load_all_kbs()
+            except Exception as e:
+                logger.warning(f"Some knowledge bases failed to load: {e}")
+        
         evidence_list = []
         
         # Population frequency evidence (critical for TO, contextual for TN)
@@ -619,6 +882,9 @@ class EvidenceAggregator:
         
         # Domain evidence
         evidence_list.extend(self._get_domain_evidence(variant_annotation, analysis_type))
+        
+        # ClinVar evidence for germline filtering and pathogenicity
+        evidence_list.extend(self._get_clinvar_evidence(variant_annotation, analysis_type))
         
         return evidence_list
     
@@ -1024,10 +1290,10 @@ class EvidenceAggregator:
         return evidence
     
     def _get_clinical_evidence(self, variant: VariantAnnotation, cancer_type: str, analysis_type: AnalysisType) -> List[Evidence]:
-        """Generate clinical evidence from CIViC and OncoKB"""
+        """Generate clinical evidence from CIViC and OncoKB with comprehensive variant matching"""
         evidence = []
         
-        # CIViC evidence
+        # CIViC evidence (existing logic)
         for civic_item in variant.civic_evidence:
             evidence_level = civic_item.get('evidence_level', '')
             
@@ -1053,33 +1319,183 @@ class EvidenceAggregator:
                     confidence=0.7
                 ))
         
-        # OncoKB evidence
-        if variant.oncokb_evidence:
-            oncokb_level = variant.oncokb_evidence.get('therapeutic_level')
-            if oncokb_level:
-                if oncokb_level == 'Level 1':
+        # Enhanced OncoKB evidence using new variant-drug-cancer associations
+        oncokb_evidence = self._get_oncokb_variant_evidence(variant, cancer_type)
+        evidence.extend(oncokb_evidence)
+        
+        return evidence
+    
+    def _get_oncokb_variant_evidence(self, variant: VariantAnnotation, cancer_type: str) -> List[Evidence]:
+        """Generate comprehensive OncoKB evidence using variant-drug-cancer associations"""
+        evidence = []
+        
+        # Get OncoKB variant data from cache
+        oncokb_variants = _KB_CACHE.get('oncokb_variants', {})
+        oncokb_levels = _KB_CACHE.get('oncokb_evidence_levels', {})
+        
+        gene = variant.gene_symbol
+        hgvs_p = variant.hgvs_p or ""
+        
+        # Try to match variant using different strategies
+        matched_variants = []
+        
+        # Strategy 1: Direct HGVS protein match
+        if hgvs_p:
+            # Extract change from HGVS (e.g., p.Val600Glu -> V600E)
+            hgvs_simplified = self._simplify_hgvs(hgvs_p)
+            variant_key = f"{gene}:{hgvs_simplified}"
+            if variant_key in oncokb_variants:
+                matched_variants.append((variant_key, oncokb_variants[variant_key], "exact_hgvs"))
+        
+        # Strategy 2: Common variant name patterns  
+        if hgvs_p:
+            # Try V600E style notation
+            alt_notation = self._hgvs_to_short_form(hgvs_p)
+            if alt_notation:
+                variant_key = f"{gene}:{alt_notation}"
+                if variant_key in oncokb_variants:
+                    matched_variants.append((variant_key, oncokb_variants[variant_key], "short_form"))
+        
+        # Strategy 3: Gene-level mutations (broader matching)
+        gene_patterns = [
+            f"{gene}:Activating Mutations",
+            f"{gene}:Oncogenic Mutations", 
+            f"{gene}:Mutation",
+            f"{gene}:Any"
+        ]
+        
+        for pattern in gene_patterns:
+            if pattern in oncokb_variants:
+                matched_variants.append((pattern, oncokb_variants[pattern], "gene_level"))
+                break  # Take first match to avoid duplicates
+        
+        # Generate evidence for each match
+        for variant_key, variant_data, match_type in matched_variants:
+            evidence_items = variant_data.get('evidence_items', [])
+            
+            for item in evidence_items:
+                level = item.get('level', '')
+                item_cancer_type = item.get('cancer_type', '').lower()
+                drugs = item.get('drugs', '')
+                
+                # Check cancer type match (exact or broad)
+                cancer_match = (
+                    cancer_type.lower() in item_cancer_type or
+                    item_cancer_type in cancer_type.lower() or
+                    'all tumors' in item_cancer_type or
+                    'all solid tumors' in item_cancer_type
+                )
+                
+                # Create evidence based on OncoKB level
+                if level == '1' and cancer_match:
                     evidence.append(Evidence(
-                        code="FDA_APPROVED",
-                        score=0,  # AMP scoring, not VICC
-                        guideline="AMP_2017",
+                        code="ONCOKB_LEVEL_1",
+                        score=0,  # AMP tier assignment
+                        guideline="OncoKB",
                         source_kb="OncoKB",
-                        description="FDA-approved therapy available for this variant",
-                        data={"oncokb_level": oncokb_level},
+                        description=f"FDA-approved therapy: {drugs} for {gene} {variant_data['alteration']} in {item_cancer_type}",
+                        data={
+                            "oncokb_level": "LEVEL_1",
+                            "alteration": variant_data['alteration'],
+                            "drugs": drugs,
+                            "cancer_type": item_cancer_type,
+                            "match_type": match_type
+                        },
                         confidence=0.95
                     ))
                 
-                elif oncokb_level in ['Level 2A', 'Level 2B']:
+                elif level == '2' and cancer_match:
                     evidence.append(Evidence(
-                        code="STANDARD_CARE",
-                        score=0,  # AMP scoring
-                        guideline="AMP_2017",
+                        code="ONCOKB_LEVEL_2",
+                        score=0,  # AMP tier assignment
+                        guideline="OncoKB", 
                         source_kb="OncoKB",
-                        description="Standard of care therapy available",
-                        data={"oncokb_level": oncokb_level},
+                        description=f"Standard care therapy: {drugs} for {gene} {variant_data['alteration']} in {item_cancer_type}",
+                        data={
+                            "oncokb_level": "LEVEL_2",
+                            "alteration": variant_data['alteration'],
+                            "drugs": drugs,
+                            "cancer_type": item_cancer_type,
+                            "match_type": match_type
+                        },
                         confidence=0.9
+                    ))
+                
+                elif level in ['3A', '3B'] and cancer_match:
+                    evidence.append(Evidence(
+                        code="ONCOKB_LEVEL_3",
+                        score=2,  # VICC moderate evidence
+                        guideline="OncoKB",
+                        source_kb="OncoKB", 
+                        description=f"Clinical evidence: {drugs} for {gene} {variant_data['alteration']} in {item_cancer_type}",
+                        data={
+                            "oncokb_level": f"LEVEL_{level}",
+                            "alteration": variant_data['alteration'],
+                            "drugs": drugs,
+                            "cancer_type": item_cancer_type,
+                            "match_type": match_type
+                        },
+                        confidence=0.8
+                    ))
+                
+                elif level == '4':
+                    evidence.append(Evidence(
+                        code="ONCOKB_LEVEL_4", 
+                        score=1,  # VICC supporting evidence
+                        guideline="OncoKB",
+                        source_kb="OncoKB",
+                        description=f"Biological evidence: {drugs} for {gene} {variant_data['alteration']}",
+                        data={
+                            "oncokb_level": "LEVEL_4",
+                            "alteration": variant_data['alteration'],
+                            "drugs": drugs,
+                            "match_type": match_type
+                        },
+                        confidence=0.7
                     ))
         
         return evidence
+    
+    def _simplify_hgvs(self, hgvs_p: str) -> str:
+        """Simplify HGVS protein notation for matching"""
+        if not hgvs_p:
+            return ""
+        
+        # Remove p. prefix and transcript info
+        simplified = hgvs_p
+        if ":" in simplified:
+            simplified = simplified.split(":")[-1]
+        if simplified.startswith("p."):
+            simplified = simplified[2:]
+        
+        return simplified
+    
+    def _hgvs_to_short_form(self, hgvs_p: str) -> str:
+        """Convert HGVS to short form (e.g., p.Val600Glu -> V600E)"""
+        import re
+        
+        if not hgvs_p:
+            return ""
+        
+        # Extract from HGVS like p.Val600Glu
+        match = re.search(r'p\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})', hgvs_p)
+        if match:
+            aa_from_long, pos, aa_to_long = match.groups()
+            
+            # Convert to single letter amino acid codes
+            aa_map = {
+                'Ala': 'A', 'Arg': 'R', 'Asn': 'N', 'Asp': 'D', 'Cys': 'C',
+                'Glu': 'E', 'Gln': 'Q', 'Gly': 'G', 'His': 'H', 'Ile': 'I',
+                'Leu': 'L', 'Lys': 'K', 'Met': 'M', 'Phe': 'F', 'Pro': 'P',
+                'Ser': 'S', 'Thr': 'T', 'Trp': 'W', 'Tyr': 'Y', 'Val': 'V'
+            }
+            
+            aa_from = aa_map.get(aa_from_long, aa_from_long)
+            aa_to = aa_map.get(aa_to_long, aa_to_long)
+            
+            return f"{aa_from}{pos}{aa_to}"
+        
+        return ""
     
     def _get_domain_evidence(self, variant: VariantAnnotation, analysis_type: AnalysisType) -> List[Evidence]:
         """Generate protein domain evidence"""
@@ -1366,31 +1782,289 @@ class EvidenceAggregator:
         
         return context_coverage / len(contexts)
     
-    def calculate_oncokb_score(self, evidence_list: List[Evidence], oncokb_data: Optional[Dict[str, Any]]) -> OncoKBScoring:
-        """Calculate OncoKB therapeutic actionability score"""
+    def calculate_oncokb_score(self, evidence_list: List[Evidence], oncokb_data: Optional[Dict[str, Any]] = None) -> OncoKBScoring:
+        """Calculate OncoKB therapeutic actionability score from evidence"""
         scoring = OncoKBScoring()
         
-        if oncokb_data:
-            # Extract OncoKB information
+        # Extract OncoKB evidence from evidence list
+        oncokb_evidence = [e for e in evidence_list if e.source_kb == "OncoKB"]
+        
+        if oncokb_evidence:
+            # Find highest level evidence
+            level_hierarchy = {
+                "ONCOKB_LEVEL_1": (OncoKBLevel.LEVEL_1, 1),
+                "ONCOKB_LEVEL_2": (OncoKBLevel.LEVEL_2A, 2), 
+                "ONCOKB_LEVEL_3": (OncoKBLevel.LEVEL_3A, 3),
+                "ONCOKB_LEVEL_4": (OncoKBLevel.LEVEL_4, 4)
+            }
+            
+            highest_level = None
+            highest_priority = 99
+            fda_approved = []
+            off_label = []
+            investigational = []
+            cancer_specific = False
+            
+            for evidence in oncokb_evidence:
+                code = evidence.code
+                if code in level_hierarchy:
+                    level, priority = level_hierarchy[code]
+                    if priority < highest_priority:
+                        highest_level = level
+                        highest_priority = priority
+                
+                # Extract therapy information from evidence data
+                evidence_data = evidence.data or {}
+                drugs = evidence_data.get('drugs', '')
+                oncokb_level = evidence_data.get('oncokb_level', '')
+                cancer_type = evidence_data.get('cancer_type', '')
+                
+                # Categorize therapies by level
+                if oncokb_level == "LEVEL_1":
+                    if drugs and drugs not in fda_approved:
+                        fda_approved.append(drugs)
+                    cancer_specific = True
+                elif oncokb_level in ["LEVEL_2", "LEVEL_3A"]: 
+                    if drugs and drugs not in off_label:
+                        off_label.append(drugs)
+                    cancer_specific = True
+                elif oncokb_level in ["LEVEL_3B", "LEVEL_4"]:
+                    if drugs and drugs not in investigational:
+                        investigational.append(drugs)
+                
+                # Check for cancer type specificity
+                if cancer_type and cancer_type.lower() not in ['all tumors', 'all solid tumors']:
+                    cancer_specific = True
+            
+            # Set scoring properties
+            scoring.therapeutic_level = highest_level
+            scoring.fda_approved_therapy = fda_approved
+            scoring.off_label_therapy = off_label  
+            scoring.investigational_therapy = investigational
+            scoring.cancer_type_specific = cancer_specific
+            scoring.any_cancer_type = not cancer_specific
+            
+            # Set oncogenicity based on level
+            if highest_level in [OncoKBLevel.LEVEL_1, OncoKBLevel.LEVEL_2A]:
+                scoring.oncogenicity = "Oncogenic"
+            elif highest_level in [OncoKBLevel.LEVEL_3A, OncoKBLevel.LEVEL_3B]:
+                scoring.oncogenicity = "Likely Oncogenic"
+            else:
+                scoring.oncogenicity = "Unknown Significance"
+        
+        # Fallback to legacy method if provided
+        elif oncokb_data:
             scoring.oncogenicity = oncokb_data.get('oncogenicity')
             
-            # Map therapeutic level
             level_str = oncokb_data.get('therapeutic_level', '')
             if level_str:
                 try:
                     scoring.therapeutic_level = OncoKBLevel(level_str)
                 except ValueError:
-                    pass  # Invalid level
+                    pass
             
-            # Extract therapy information
             scoring.fda_approved_therapy = oncokb_data.get('fda_approved_drugs', [])
             scoring.off_label_therapy = oncokb_data.get('off_label_drugs', [])
             scoring.investigational_therapy = oncokb_data.get('investigational_drugs', [])
-            
             scoring.cancer_type_specific = oncokb_data.get('cancer_type_specific', False)
         
         return scoring
+    
+    def validate_cancer_type(self, cancer_type: str) -> Dict[str, Any]:
+        """Validate cancer type against OncoTree TSV data with enhanced tissue-specific matching"""
+        oncotree_data = _KB_CACHE.get('oncotree_data', {})
+        if not oncotree_data:
+            return {'valid': False, 'message': 'OncoTree data not available'}
+        
+        code_map = oncotree_data.get('code_map', {})
+        hierarchy_map = oncotree_data.get('hierarchy_map', {})
+        tissue_map = oncotree_data.get('tissue_map', {})
+        tissue_files = oncotree_data.get('tissue_files', {})
+        
+        # Check direct match (case-insensitive)
+        cancer_upper = cancer_type.upper()
+        if cancer_upper in code_map:
+            return {
+                'valid': True,
+                'code': cancer_upper,
+                'name': code_map[cancer_upper]['name'],
+                'main_type': code_map[cancer_upper]['main_type'],
+                'tissue': code_map[cancer_upper]['tissue'],
+                'level': code_map[cancer_upper]['level'],
+                'hierarchy': hierarchy_map.get(cancer_upper, []),
+                'external_references': code_map[cancer_upper].get('external_references', ''),
+                'matched_by': 'code'
+            }
+        
+        # Check name-based matching with priority scoring
+        best_match = None
+        best_score = 0
+        
+        for code, info in code_map.items():
+            score = 0
+            cancer_lower = cancer_type.lower()
+            
+            # Exact name match (highest priority)
+            if cancer_lower == info['name'].lower():
+                score = 100
+            # Main type exact match
+            elif cancer_lower == info['main_type'].lower():
+                score = 90
+            # Tissue exact match  
+            elif cancer_lower == info['tissue'].lower():
+                score = 80
+            # Partial name match
+            elif cancer_lower in info['name'].lower():
+                score = 70
+            # Partial main type match
+            elif cancer_lower in info['main_type'].lower():
+                score = 60
+            # Partial tissue match
+            elif cancer_lower in info['tissue'].lower():
+                score = 50
+            
+            if score > best_score:
+                best_score = score
+                best_match = {
+                    'valid': True,
+                    'code': code,
+                    'name': info['name'],
+                    'main_type': info['main_type'],
+                    'tissue': info['tissue'],
+                    'level': info['level'],
+                    'hierarchy': hierarchy_map.get(code, []),
+                    'external_references': info.get('external_references', ''),
+                    'matched_by': 'name_similarity',
+                    'match_score': score
+                }
+        
+        if best_match and best_score >= 50:
+            return best_match
+        
+        # Check tissue-specific files for additional context
+        suggestions = []
+        for tissue, codes in tissue_map.items():
+            if cancer_type.lower() in tissue.lower():
+                suggestions.extend(codes[:3])  # Top 3 suggestions per tissue
+        
+        return {
+            'valid': False, 
+            'message': f'Cancer type "{cancer_type}" not found in OncoTree',
+            'suggestions': suggestions[:5],  # Top 5 suggestions total
+            'total_available_types': len(code_map)
+        }
+    
+    def get_tissue_cancer_types(self, tissue: str) -> Dict[str, Any]:
+        """Get all cancer types for a specific tissue using tissue-specific TSV files"""
+        oncotree_data = _KB_CACHE.get('oncotree_data', {})
+        if not oncotree_data:
+            return {'tissue': tissue, 'cancer_types': [], 'message': 'OncoTree data not available'}
+        
+        tissue_files = oncotree_data.get('tissue_files', {})
+        tissue_map = oncotree_data.get('tissue_map', {})
+        
+        # Find exact tissue match in tissue files
+        tissue_upper = tissue.upper()
+        if tissue_upper in tissue_files:
+            tissue_data = tissue_files[tissue_upper]
+            return {
+                'tissue': tissue,
+                'cancer_types': tissue_data,
+                'count': len(tissue_data),
+                'source': f'tissue_file_{tissue_upper}'
+            }
+        
+        # Fallback to tissue map
+        matching_tissues = []
+        for tissue_name, codes in tissue_map.items():
+            if tissue.lower() in tissue_name.lower():
+                code_map = oncotree_data.get('code_map', {})
+                tissue_types = []
+                for code in codes:
+                    if code in code_map:
+                        tissue_types.append({
+                            'code': code,
+                            'name': code_map[code]['name'],
+                            'main_type': code_map[code]['main_type'],
+                            'level': code_map[code]['level']
+                        })
+                matching_tissues.append({
+                    'tissue_name': tissue_name,
+                    'cancer_types': tissue_types
+                })
+        
+        return {
+            'tissue': tissue,
+            'matching_tissues': matching_tissues,
+            'count': sum(len(t['cancer_types']) for t in matching_tissues)
+        }
+    
+    def _get_clinvar_evidence(self, variant: VariantAnnotation, analysis_type: AnalysisType) -> List[Evidence]:
+        """Generate ClinVar clinical significance evidence for tumor-only germline filtering"""
+        evidence = []
+        
+        clinvar_data = _KB_CACHE.get('clinvar_data', {})
+        if not clinvar_data:
+            return evidence
+        
+        gene_symbol = variant.gene_symbol
+        if not gene_symbol:
+            return evidence
+        
+        pathogenic_variants = clinvar_data.get('pathogenic_variants', {})
+        benign_variants = clinvar_data.get('benign_variants', {})
+        
+        # Check for pathogenic variants in this gene
+        if gene_symbol in pathogenic_variants:
+            pathogenic_count = len(pathogenic_variants[gene_symbol])
+            
+            # For tumor-only analysis, flag potential germline pathogenic variants
+            if analysis_type == AnalysisType.TUMOR_ONLY:
+                evidence.append(Evidence(
+                    code="SBVS1",  # Strong benign supporting - tumor-only context
+                    score=-2,  # Negative score for potential germline contamination
+                    guideline="AMP_2017",
+                    source_kb="ClinVar",
+                    description=f"Gene {gene_symbol} has {pathogenic_count} pathogenic variants in ClinVar - "
+                               f"potential germline contamination in tumor-only analysis",
+                    data={
+                        "pathogenic_variant_count": pathogenic_count,
+                        "analysis_type": "tumor_only",
+                        "germline_risk": True
+                    },
+                    confidence=0.6  # Lower confidence due to tumor-only limitations
+                ))
+            else:
+                # For matched analysis, provide supporting evidence
+                evidence.append(Evidence(
+                    code="SP1",  # Supporting pathogenic
+                    score=1,
+                    guideline="AMP_2017", 
+                    source_kb="ClinVar",
+                    description=f"Gene {gene_symbol} has known pathogenic variants in ClinVar",
+                    data={
+                        "pathogenic_variant_count": pathogenic_count,
+                        "analysis_type": "matched_normal"
+                    },
+                    confidence=0.8
+                ))
+        
+        # Check for benign variants (generally supportive of variant tolerance)
+        if gene_symbol in benign_variants:
+            benign_count = len(benign_variants[gene_symbol])
+            evidence.append(Evidence(
+                code="SBP1",  # Supporting benign
+                score=-1,
+                guideline="AMP_2017",
+                source_kb="ClinVar",
+                description=f"Gene {gene_symbol} has {benign_count} benign variants in ClinVar",
+                data={"benign_variant_count": benign_count},
+                confidence=0.5
+            ))
+        
+        return evidence
 
 
 # Global instance
-evidence_aggregator = EvidenceAggregator()
+# Remove automatic initialization to prevent startup errors
+# evidence_aggregator = EvidenceAggregator()

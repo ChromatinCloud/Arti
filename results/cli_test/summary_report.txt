@@ -1,0 +1,56 @@
+ANNOTATION ENGINE - SUMMARY REPORT
+==================================================
+
+Case ID: TEST_001
+Cancer Type: melanoma
+Analysis Type: AnalysisType.TUMOR_ONLY
+Genome Build: GRCh38
+Processing Date: 2025-06-16T19:04:58.112618
+
+SUMMARY STATISTICS
+--------------------
+Total Variants: 4
+
+Tier Distribution:
+  Tier IV: 4
+
+Gene Distribution:
+  TP53: 1
+  BRAF: 1
+  KRAS: 1
+  PIK3CA: 1
+
+DETAILED VARIANT LIST
+--------------------
+
+1. TP53 p.Arg248Gln
+   Location: 17:7674220
+   AMP Tier: Tier IV
+   VICC: Likely Oncogenic
+   VAF: 0.460
+   Depth: 50
+   Confidence: 0.34
+
+2. BRAF p.Val600Glu
+   Location: 7:140753336
+   AMP Tier: Tier IV
+   VICC: Likely Oncogenic
+   VAF: 0.511
+   Depth: 45
+   Confidence: 0.34
+
+3. KRAS p.Gly12Cys
+   Location: 12:25245350
+   AMP Tier: Tier IV
+   VICC: Likely Oncogenic
+   VAF: 0.421
+   Depth: 38
+   Confidence: 0.34
+
+4. PIK3CA p.His1047Arg
+   Location: 3:178952085
+   AMP Tier: Tier IV
+   VICC: Likely Oncogenic
+   VAF: 0.382
+   Depth: 55
+   Confidence: 0.34

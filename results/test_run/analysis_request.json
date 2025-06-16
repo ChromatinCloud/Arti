@@ -1,0 +1,78 @@
+{
+  "case_uid": "TEST_001",
+  "patient_uid": "TEST_001",
+  "vcf_file_path": "example_input/proper_test.vcf",
+  "tumor_vcf_path": null,
+  "normal_vcf_path": null,
+  "analysis_type": "TUMOR_ONLY",
+  "cancer_type": "melanoma",
+  "oncotree_id": null,
+  "tissue_type": "primary_tumor",
+  "output_directory": "results/test_run",
+  "output_format": "all",
+  "genome_build": "GRCh38",
+  "guidelines": [
+    "AMP_ACMG",
+    "CGC_VICC",
+    "ONCOKB"
+  ],
+  "quality_filters": {
+    "min_depth": 10,
+    "min_vaf": 0.05,
+    "skip_qc": false
+  },
+  "tumor_purity": null,
+  "vcf_summary": {
+    "valid_format": true,
+    "total_variants": 4,
+    "errors": [],
+    "warnings": [],
+    "statistics": {
+      "total_variants": 4,
+      "variant_types": {
+        "SNV": 4
+      },
+      "chromosomes": "{'7', '17', '12', '3'}",
+      "quality_distribution": [
+        100,
+        95,
+        85,
+        110
+      ],
+      "depth_distribution": [
+        50,
+        45,
+        38,
+        55
+      ],
+      "filter_status": {
+        "PASS": 4
+      },
+      "samples": [
+        "TUMOR"
+      ]
+    },
+    "sample_count": 1,
+    "chromosomes": [
+      "12",
+      "17",
+      "3",
+      "7"
+    ],
+    "variant_types": {
+      "SNV": 4
+    },
+    "quality_summary": {
+      "mean_quality": 97.5,
+      "min_quality": 85,
+      "max_quality": 110
+    },
+    "file_path": "example_input/proper_test.vcf",
+    "file_size": 908,
+    "compressed": false
+  },
+  "config_file": null,
+  "kb_bundle": null,
+  "created_at": "2025-06-16 19:03:01.659980",
+  "analysis_id": null
+}
