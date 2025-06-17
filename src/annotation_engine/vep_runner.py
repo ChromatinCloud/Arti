@@ -5,6 +5,7 @@ Executes VEP (Variant Effect Predictor) with proper plugins and parses JSON outp
 into VariantAnnotation objects for the annotation engine pipeline.
 
 Supports both Docker and native VEP installations with comprehensive error handling.
+Uses centralized VEP Docker Manager for consistent mount configurations.
 """
 
 import json
@@ -18,6 +19,7 @@ import os
 
 from .models import VariantAnnotation, PopulationFrequency
 from .validation.error_handler import ValidationError
+from .vep_docker_manager import VEPDockerManager, VEPDockerConfig, VEPDockerMode
 
 logger = logging.getLogger(__name__)
 
@@ -185,11 +187,26 @@ class VEPRunner:
     VEP (Variant Effect Predictor) runner with Docker and native support
     
     Executes VEP with proper plugins and configuration for clinical variant annotation.
+    Uses centralized VEP Docker Manager for consistent Docker operations.
     """
     
     def __init__(self, config: Optional[VEPConfiguration] = None):
         self.config = config or VEPConfiguration()
         self.config.validate()
+        
+        # Initialize Docker manager for Docker-based execution
+        if self.config.use_docker:
+            docker_config = VEPDockerConfig(
+                repo_root=self.config.repo_root,
+                refs_dir=self.config.refs_dir,
+                cache_dir=self.config.cache_dir,
+                plugins_dir=self.config.plugins_dir,
+                docker_image=self.config.docker_image,
+                assembly=self.config.assembly
+            )
+            self.docker_manager = VEPDockerManager(docker_config)
+        else:
+            self.docker_manager = None
         
         # VEP plugins for clinical annotation (evidence-based selection)
         # NOTE: Plugin selection rationale in ./docs/VEP_PLUGINS.md 
@@ -206,7 +223,7 @@ class VEPRunner:
             "SpliceAI,{refs_dir}/spliceai/spliceai_scores.raw.snv.ensembl_mane.grch38.110.vcf.gz",
             
             # Moderate Evidence predictors - FILES AVAILABLE ✓  
-            "BayesDel,{refs_dir}/functional_predictions/plugin_data/pathogenicity/BayesDel_170824_addAF.tgz",
+            "BayesDel,{refs_dir}/functional_predictions/plugin_data/pathogenicity/BayesDel_170824_noAF.tgz",
             "Conservation,{refs_dir}/functional_predictions/plugin_data/conservation/hg38.phyloP100way.bw,phyloP100way",
             "LoFtool,{refs_dir}/functional_predictions/plugin_data/gene_constraint/LoFtool_scores.txt",
             "MaveDB,{refs_dir}/functional_predictions/plugin_data/mavedb/MaveDB_variants.tsv.gz",
@@ -214,7 +231,7 @@ class VEPRunner:
             "UTRAnnotator,{refs_dir}/functional_predictions/plugin_data/utr/uORF_5UTR_GRCh38_PUBLIC.txt",
             
             # Population frequency 
-            "gnomAD,{refs_dir}/population_frequencies/gnomad/gnomad.exomes.v4.0.sites.chr1.vcf.bgz",
+            "gnomAD,{refs_dir}/variant/vcf/gnomad_non_cancer/gnomad_non_cancer.vcf.gz",
             
             # Clinical evidence
             "ClinVar,{refs_dir}/clinical_evidence/clinvar/clinvar.vcf.gz,exact",
@@ -230,13 +247,15 @@ class VEPRunner:
             "NMD",     # NMD escape prediction via rules
             "SpliceRegion",  # Built-in VEP plugin for splice region annotation
             
+            # Additional evidence predictors - FILES AVAILABLE ✓
+            "EVE,{refs_dir}/functional_predictions/plugin_data/protein_impact/eve_merged.vcf",
+            "PolyPhen_SIFT,{refs_dir}/functional_predictions/plugin_data/protein_impact/homo_sapiens_pangenome_PolyPhen_SIFT_20240502.db",
+            
             # === UNAVAILABLE PLUGINS (Files Not Found) ===
-            # These 6 plugins are unavailable and need data files to be obtained:
+            # These 4 plugins are unavailable and need data files to be obtained:
             
             # "ClinPred,{refs_dir}/functional_predictions/plugin_data/pathogenicity/ClinPred_scores.vcf.gz",  # ❌ Missing
-            # "dbscSNV,{refs_dir}/functional_predictions/plugin_data/splicing/dbscSNV1.1_hg38.txt.gz",      # ❌ Missing  
-            # "EVE,{refs_dir}/functional_predictions/plugin_data/protein_impact/eve_merged.vcf.gz",          # ❌ Missing
-            # "PolyPhen_SIFT,{refs_dir}/functional_predictions/plugin_data/pathogenicity/polyphen_sift_scores.vcf.gz",  # ❌ Missing
+            # "dbscSNV,{refs_dir}/functional_predictions/plugin_data/splicing/dbscSNV1.1_hg38.txt.gz",      # ❌ Missing
             # "VARITY,{refs_dir}/functional_predictions/plugin_data/protein_impact/VARITY_R_LOO_v1.0.tsv.gz",  # ❌ Missing (trying install.pl)
             # "gnomADc,{refs_dir}/population_frequencies/gnomad/gnomad_coverage.vcf.gz",                   # ❌ Missing
         ]
@@ -344,26 +363,16 @@ class VEPRunner:
                              output_file: Path,
                              output_format: str,
                              plugins: List[str]) -> List[str]:
-        """Build Docker VEP command with comprehensive data volume mappings"""
+        """Build Docker VEP command using centralized Docker manager"""
         
-        input_dir = input_vcf.parent.absolute()
-        output_dir = output_file.parent.absolute()
-        refs_dir = self.config.refs_dir.absolute()
+        if not self.docker_manager:
+            raise ValidationError(
+                error_type="docker_manager_not_initialized",
+                message="Docker manager not initialized but Docker execution requested"
+            )
         
-        cmd = [
-            "docker", "run", "--rm",
-            "-v", f"{self.config.cache_dir}:/opt/vep/.vep:ro",
-            "-v", f"{self.config.plugins_dir}:/opt/vep/plugins:ro",
-            "-v", f"{refs_dir}:/.refs:ro",  # Mount entire .refs for plugin data access
-            "-v", f"{input_dir}:/input:ro",
-            "-v", f"{output_dir}:/output",
-            "-w", "/input",
-            self.config.docker_image,
-            "vep"
-        ]
-        
-        # Add VEP arguments
-        cmd.extend(self._get_vep_args(
+        # Get VEP arguments for container paths
+        vep_args = self._get_vep_args(
             input_file=f"/input/{input_vcf.name}",
             output_file=f"/output/{output_file.name}",
             output_format=output_format,
@@ -371,7 +380,15 @@ class VEPRunner:
             cache_dir="/opt/vep/.vep",
             plugins_dir="/opt/vep/plugins",
             refs_dir="/.refs"  # Docker-mounted refs directory
-        ))
+        )
+        
+        # Use Docker manager to build command
+        cmd = self.docker_manager.build_docker_command(
+            input_file=input_vcf,
+            output_file=output_file,
+            vep_args=vep_args,
+            mode=VEPDockerMode.ANNOTATION
+        )
         
         return cmd
     

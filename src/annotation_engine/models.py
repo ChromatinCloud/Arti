@@ -142,6 +142,8 @@ class VariantAnnotation(BaseModel):
     filter_status: List[str] = Field(default_factory=list)
     total_depth: Optional[int] = None
     vaf: Optional[float] = Field(None, description="Variant allele frequency")
+    tumor_vaf: Optional[float] = Field(None, description="Tumor sample VAF")
+    normal_vaf: Optional[float] = Field(None, description="Normal sample VAF")
     tumor_purity: Optional[float] = Field(None, description="Estimated tumor purity")
     
     # VEP annotations

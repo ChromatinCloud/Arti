@@ -20,6 +20,8 @@ from .validation.vcf_validator import VCFValidator
 from .validation.input_schemas import CLIInputSchema, AnalysisRequest
 from .validation.error_handler import ValidationError, CLIErrorHandler
 from .models import AnalysisType
+from .input_validator import InputValidator
+from .patient_context import PatientContextManager
 
 
 class AnnotationEngineCLI:
@@ -33,6 +35,8 @@ class AnnotationEngineCLI:
     def __init__(self):
         self.error_handler = CLIErrorHandler()
         self.vcf_validator = VCFValidator()
+        self.input_validator = InputValidator()
+        self.patient_context_manager = PatientContextManager()
         
     def create_parser(self) -> argparse.ArgumentParser:
         """Create CLI argument parser with comprehensive validation"""
@@ -261,7 +265,7 @@ class AnnotationEngineCLI:
     
     def validate_vcf_file(self, vcf_path: Path) -> Dict[str, Any]:
         """
-        Validate VCF file format and structure
+        Validate VCF file format and structure using enhanced input validator
         
         Args:
             vcf_path: Path to VCF file
@@ -279,7 +283,25 @@ class AnnotationEngineCLI:
                 details={"file_path": str(vcf_path)}
             )
         
-        return self.vcf_validator.validate_file(vcf_path)
+        # Use new input validator for enhanced validation
+        validation_result = self.input_validator.vcf_validator.validate_vcf(vcf_path)
+        
+        if not validation_result.is_valid:
+            raise ValidationError(
+                error_type="invalid_vcf",
+                message=f"VCF validation failed: {'; '.join(validation_result.errors)}",
+                details={"errors": validation_result.errors}
+            )
+        
+        # Also run legacy validator for compatibility
+        legacy_result = self.vcf_validator.validate_file(vcf_path)
+        
+        # Merge results
+        return {
+            **legacy_result,
+            "enhanced_metadata": validation_result.metadata,
+            "warnings": validation_result.warnings
+        }
     
     def create_analysis_request(self, validated_input: CLIInputSchema, vcf_validation: Dict[str, Any]) -> AnalysisRequest:
         """
@@ -485,6 +507,7 @@ class AnnotationEngineCLI:
         from .evidence_aggregator import EvidenceAggregator
         from .tiering import TieringEngine
         from .vep_runner import VEPRunner, VEPConfiguration
+        from .workflow_router import create_workflow_router
         from pathlib import Path
         
         # Step 1: Determine input VCF
@@ -495,6 +518,27 @@ class AnnotationEngineCLI:
         
         print(f"  📁 Processing VCF: {vcf_path}")
         print(f"  🔬 Analysis type: {analysis_request.analysis_type}")
+        
+        # Step 1.5: Create patient context
+        patient_context = self.patient_context_manager.create_context(
+            patient_uid=analysis_request.patient_uid,
+            case_uid=analysis_request.case_uid,
+            cancer_type=analysis_request.cancer_type,
+            oncotree_code=analysis_request.oncotree_id,
+            age_at_diagnosis=getattr(analysis_request, 'age_at_diagnosis', None),
+            sex=getattr(analysis_request, 'sex', None)
+        )
+        
+        if patient_context.tissue_type:
+            print(f"  🏥 Patient Context: {patient_context.cancer_type} ({patient_context.tissue_type})")
+        else:
+            print(f"  🏥 Patient Context: {patient_context.cancer_type}")
+        
+        # Step 1.6: Create workflow router for pathway-specific logic
+        workflow_router = create_workflow_router(
+            analysis_type=analysis_request.analysis_type,
+            tumor_type=patient_context.oncotree_code or patient_context.cancer_type
+        )
         
         # Step 2: Run VEP annotation first
         print("  🧬 Running VEP annotation...")
@@ -567,16 +611,17 @@ class AnnotationEngineCLI:
                         hgvs_p=hgvs_p,
                         hgvs_c=hgvs_c,
                         vaf=vaf,
-                        total_depth=total_depth
+                        total_depth=total_depth,
+                        tumor_vaf=vaf  # Add tumor_vaf for workflow router
                     )
                     annotations.append(annotation)
                     print(f"    ✅ {gene} {hgvs_p} (VAF: {vaf:.3f}, Depth: {total_depth})")
                 else:
                     print(f"    ⚠️  Skipping unknown variant at {var_key} in fallback mode")
         
-        # Step 4: Evidence Aggregation
+        # Step 4: Evidence Aggregation with workflow routing
         print(f"  🔍 Aggregating evidence for {len(annotations)} variants...")
-        aggregator = EvidenceAggregator()
+        aggregator = EvidenceAggregator(workflow_router=workflow_router)
         
         all_evidence = []
         for annotation in annotations:
@@ -587,14 +632,22 @@ class AnnotationEngineCLI:
             except Exception as e:
                 print(f"    ❌ Evidence aggregation failed for {annotation.gene_symbol}: {e}")
         
-        # Step 5: Tier Assignment
+        # Step 5: Display pathway configuration
+        print(f"  🔀 Using {workflow_router.pathway.name} pathway")
+        print(f"     - VAF thresholds: tumor≥{workflow_router.get_vaf_threshold('min_tumor_vaf'):.0%}")
+        if workflow_router.pathway.analysis_type == AnalysisType.TUMOR_NORMAL:
+            print(f"     - Normal filtering: ≤{workflow_router.get_vaf_threshold('max_normal_vaf'):.0%}")
+        
+        # Step 6: Tier Assignment with workflow routing
         print(f"  🎯 Assigning tiers for {len(annotations)} variants...")
-        tiering_engine = TieringEngine()
+        tiering_engine = TieringEngine(workflow_router=workflow_router)
         
         results = []
         for annotation in annotations:
             try:
-                tier_result = tiering_engine.assign_tier(annotation, analysis_request.cancer_type)
+                # Convert analysis type if needed
+                analysis_type_obj = analysis_request.analysis_type if hasattr(analysis_request.analysis_type, 'value') else AnalysisType(analysis_request.analysis_type)
+                tier_result = tiering_engine.assign_tier(annotation, analysis_request.cancer_type, analysis_type_obj)
                 
                 # Convert to JSON-serializable format
                 result_dict = {

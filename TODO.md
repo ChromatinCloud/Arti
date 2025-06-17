@@ -1,119 +1,93 @@
-# TODO – Phase 1 Complete, Phase 2 Planning
+# TODO – Next High-Value Tasks
 
-> Phase 1 Sprint Completed 2025-06-16
+## 🎯 Immediate Priorities
 
-## 🎉 Phase 1 - COMPLETE
+### 1. Fix Test Suite (Unblocks Everything)
+- [ ] Fix 36 failing VEP-related tests
+- [ ] Update test paths for new plugin locations
+- [ ] Add tests for AlphaMissense/GERP fallback modules
+- [ ] Validate plugin_fallbacks.py integration
 
-✅ **ALL PHASE 1 OBJECTIVES ACHIEVED:**
+### 2. Complete dbNSFP Integration
+- [ ] Check if dbNSFP5.1a download completed
+- [ ] Update VEP runner to use new dbNSFP if available
+- [ ] Enable ClinPred, dbscSNV, VARITY plugins
+- [ ] Run full plugin validation
 
-### Core Pipeline - COMPLETE
-1. **vep_runner.py** - ✅ COMPLETE (820 lines)
-   * VEP execution with --json output and comprehensive plugin integration
-   * Docker and native VEP support with GRCh38 configuration
-   * Returns VariantAnnotation objects with 25+ plugin data fields
+### 3. Input Validation Module
+- [ ] Create `src/annotation_engine/input_validator.py`
+  - VCF format validation (valid headers, required fields)
+  - Multi-sample detection logic
+  - Chromosome naming standardization (chr1 vs 1)
+  - Sample pairing for tumor-normal
+- [ ] Create `src/annotation_engine/patient_context.py`
+  - Patient UID validation
+  - OncoTree code lookup and validation
+  - Case metadata management
+  - Sample type inference
 
-2. **evidence_aggregator.py** - ✅ COMPLETE (1,395 lines)
-   * Lazy-loading knowledge base integration with global caching
-   * OncoKB, CIViC, COSMIC, MSK Hotspots evidence frameworks
-   * Dynamic Somatic Confidence (DSC) scoring system
-   * Fixed all file path mismatches and KB loading issues
+### 4. Workflow Router Implementation
+- [ ] Create `src/annotation_engine/workflow_router.py`
+  - Define tumor-only vs tumor-normal pathways
+  - Set KB priority orders per pathway
+  - Configure evidence weight multipliers
+  - Handle VAF threshold differences
+- [ ] Update evidence_aggregator.py to use workflow context
+- [ ] Update tiering.py for pathway-specific rules
 
-3. **tiering.py** - ✅ COMPLETE (976 lines)
-   * Full AMP/ASCO/CAP 2017 and VICC/CGC 2022 implementation
-   * Context-specific tiering (therapeutic/diagnostic/prognostic)
-   * assign_tier() function with comprehensive TierResult objects
+### 5. Performance Optimization
+- [ ] Profile VEP execution with 26 plugins
+- [ ] Implement plugin data pre-loading
+- [ ] Add progress bars for long operations
+- [ ] Cache warming strategy for common genes
 
-### Integration & Testing - COMPLETE
-4. **End-to-End Pipeline** - ✅ COMPLETE
-   * VCF → VariantAnnotation → Evidence → TierResult → JSON pipeline
-   * Real VCF processing with VCFFieldExtractor (no hardcoded variants)
-   * GRCh38 consistency across all components
-   * Performance: 0.20 seconds for 4-variant processing
+## 💡 Quick Wins (< 1 hour each)
 
-5. **CLI Integration** - ✅ COMPLETE
-   * Full-featured CLI with comprehensive argument parsing
-   * Multiple output formats (JSON, summary, variant-only)
-   * Quality control filtering (depth, VAF)
-   * Test mode: `--test` for quick validation
-   * Poetry entry point: `poetry run annotation-engine`
+1. **Add progress logging to VEP runner**
+   - Users need feedback during 77-second runs
+   - Simple tqdm integration
 
-6. **Clinical Validation** - ✅ COMPLETE
-   * BRAF V600E correctly classified as "Likely Oncogenic" 
-   * All test variants (TP53, KRAS, PIK3CA) properly tiered
-   * Evidence aggregation working with real knowledge bases
+2. **Create plugin status command**
+   - `annotation-engine --check-plugins`
+   - Shows which plugins are ready/missing
 
-## 📋 Phase 2 - Production Readiness & Enhancement
+3. **Add memory usage tracking**
+   - Log peak memory during annotation
+   - Identify memory bottlenecks
 
-### Priority 1: Full VEP Integration
-- [ ] **VEP Docker Integration**: Complete gene annotation without hardcoded mappings
-- [ ] **Plugin Data Flow**: Ensure all VEP plugin output feeds into evidence aggregation
-- [ ] **Transcript Selection**: Implement canonical transcript selection and MANE Select
+4. **Document plugin data sources**
+   - Create PLUGIN_DATA_SOURCES.md
+   - Include download links and versions
 
-### Priority 2: Knowledge Base Expansion
-- [ ] **Missing Databases**: Add SpliceAI, AlphaMissense, complete COSMIC CGC
-- [ ] **COSMIC Data Fix**: Replace HTML placeholders with actual gzipped data files
-- [ ] **OncoTree Integration**: Add cancer type ontology for context-specific interpretation
-- [ ] **ClinVar Integration**: Enhanced pathogenicity classification
+## 🔧 Technical Debt
 
-### Priority 3: Clinical Validation & Benchmarking
-- [ ] **Benchmark Datasets**: Test against known clinical variants and published cases
-- [ ] **Tier I Validation**: Ensure therapeutic actionable variants correctly classified
-- [ ] **Sensitivity Analysis**: Measure detection rates for different variant classes
-- [ ] **Clinical Report Format**: Generate clinical-grade interpretation reports
+1. **Error Messages**
+   - VEP failures need clearer diagnostics
+   - Add suggestions for common issues
+   - Structured error codes
 
-### Priority 4: Scalability & Performance
-- [ ] **Large VCF Support**: Optimize for whole exome/genome scale processing
-- [ ] **Batch Processing**: Multi-sample and cohort analysis capabilities
-- [ ] **Memory Optimization**: Reduce memory footprint for KB loading
-- [ ] **Parallel Processing**: Multi-threading for variant annotation
+2. **Configuration**
+   - Move hardcoded paths to config.yaml
+   - Environment variable support
+   - Plugin enable/disable flags
 
-### Priority 5: API & Integration
-- [ ] **Web API**: REST API for clinical workflow integration
-- [ ] **Database Backend**: Store results and enable querying/reporting
-- [ ] **FHIR Integration**: Healthcare interoperability standards
-- [ ] **Workflow Integration**: Nextflow/WDL pipeline integration
+3. **Logging**
+   - Structured JSON logging option
+   - Separate log levels per module
+   - Performance metrics collection
 
-### Priority 6: Documentation & Deployment
-- [ ] **User Guide**: Comprehensive documentation for clinical users
-- [ ] **API Documentation**: OpenAPI specification and examples
-- [ ] **Deployment Guide**: Docker, Kubernetes, cloud deployment options
-- [ ] **Clinical Guidelines**: Interpretation guidelines and decision trees
+## 🚀 Next Session Starting Points
 
-## 🚀 Immediate Next Steps (Phase 2 Sprint 1)
-
-1. **VEP Docker Integration** (Week 1)
-   - Fix VEP Docker execution pipeline
-   - Remove hardcoded gene mappings
-   - Test with comprehensive VEP annotation
-
-2. **Knowledge Base Completion** (Week 2) 
-   - Download missing/corrupted knowledge base files
-   - Test complete evidence aggregation pipeline
-   - Validate clinical classification accuracy
-
-3. **Production Testing** (Week 3)
-   - Large VCF file testing and optimization
-   - Clinical benchmark validation
-   - Performance profiling and optimization
-
-4. **Documentation** (Week 4)
-   - Create comprehensive USAGE.md
-   - Update deployment instructions
-   - Prepare for external testing/feedback
-
-## Development Commands
 ```bash
-# Current working commands
-poetry run annotation-engine --test              # Quick test (0.20s)
-poetry run annotation-engine --input data.vcf --case-uid CASE001 --cancer-type melanoma
-poetry run pytest -q                            # Test suite
-poetry run ruff --select I --target-version py310  # Linting
+# Check test status
+poetry run pytest -x  # Stop on first failure
 
-# Phase 2 targets
-poetry run annotation-engine --input large.vcf --batch-mode  # Future: batch processing
-poetry run annotation-engine --api-mode                      # Future: API server
+# Validate current setup
+poetry run python scripts/validate_knowledge_bases.py
+
+# Check dbNSFP download
+ls -lh .refs/functional_predictions/plugin_data/pathogenicity/dbNSFP5.1a*
+
+# Test with all plugins
+poetry run annotation-engine --test --verbose
 ```
-
----
-**Phase 1 Status**: ✅ COMPLETE - All objectives achieved, pipeline functional
-**Next Update**: Phase 2 Sprint 1 planning (estimated start: next session)

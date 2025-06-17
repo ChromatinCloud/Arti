@@ -257,9 +257,9 @@ class KnowledgeBaseLoader:
         cosmic_path = self.kb_base_path / "cancer_genes" / "cosmic_cgc"
         genes = {}
         
-        if (cosmic_path / "cancer_hotspots.tsv.gz").exists():
+        if (cosmic_path / "cancer_gene_census.tsv.gz").exists():
             try:
-                df = pd.read_csv(cosmic_path / "cancer_hotspots.tsv.gz", sep='\t', compression='gzip')
+                df = pd.read_csv(cosmic_path / "cancer_gene_census.tsv.gz", sep='\t', compression='gzip')
             except Exception as e:
                 logger.warning(f"Failed to load COSMIC CGC file: {e}")
                 return genes
@@ -837,10 +837,11 @@ class DynamicSomaticConfidenceCalculator:
 class EvidenceAggregator:
     """Main class for aggregating evidence from knowledge bases"""
     
-    def __init__(self, kb_base_path: str = ".refs"):
+    def __init__(self, kb_base_path: str = ".refs", workflow_router=None):
         self.loader = KnowledgeBaseLoader(kb_base_path)
         # Load KBs on first use to avoid startup errors
         self.dsc_calculator = DynamicSomaticConfidenceCalculator()
+        self.workflow_router = workflow_router
     
     def aggregate_evidence(self, variant_annotation: VariantAnnotation, cancer_type: str = "unknown", 
                          analysis_type: AnalysisType = AnalysisType.TUMOR_ONLY) -> List[Evidence]:
@@ -885,6 +886,46 @@ class EvidenceAggregator:
         
         # ClinVar evidence for germline filtering and pathogenicity
         evidence_list.extend(self._get_clinvar_evidence(variant_annotation, analysis_type))
+        
+        # Apply workflow-specific evidence adjustments if router is available
+        if self.workflow_router:
+            # Convert evidence to dict format for adjustment
+            evidence_dicts = []
+            for evidence in evidence_list:
+                evidence_dict = {
+                    "source_kb": evidence.source_kb,
+                    "score": evidence.score,
+                    "code": evidence.code,
+                    "guideline": evidence.guideline,
+                    "description": evidence.description,
+                    "data": evidence.data,
+                    "confidence": evidence.confidence
+                }
+                evidence_dicts.append(evidence_dict)
+            
+            # Adjust scores based on workflow
+            adjusted_dicts = self.workflow_router.adjust_evidence_scores(evidence_dicts)
+            
+            # Convert back to Evidence objects with adjusted scores
+            adjusted_evidence = []
+            for i, adj_dict in enumerate(adjusted_dicts):
+                original_evidence = evidence_list[i]
+                # Create new Evidence with adjusted confidence if weight was applied
+                if "pathway_weight" in adj_dict:
+                    adjusted_confidence = original_evidence.confidence * adj_dict["pathway_weight"]
+                    adjusted_evidence.append(Evidence(
+                        code=original_evidence.code,
+                        score=original_evidence.score,
+                        guideline=original_evidence.guideline,
+                        source_kb=original_evidence.source_kb,
+                        description=original_evidence.description,
+                        data={**original_evidence.data, "pathway_weight": adj_dict["pathway_weight"]},
+                        confidence=adjusted_confidence
+                    ))
+                else:
+                    adjusted_evidence.append(original_evidence)
+            
+            return adjusted_evidence
         
         return evidence_list
     

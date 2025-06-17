@@ -18,6 +18,7 @@ done
 docker run --rm \
   -v "$VEP_CACHE_DIR:/opt/vep/.vep:ro" \
   -v "$VEP_PLUGINS_DIR:/opt/vep/plugins:ro" \
+  -v "$REFS_DIR:/.refs:ro" \
   -v "$INPUT_DIR:/data" \
   -v "$OUTPUT_DIR:/output" \
   -w /data \

@@ -55,6 +55,7 @@ def test_evidence_aggregation():
         is_oncogene=True,
         is_tumor_suppressor=False,
         vaf=0.45,
+        tumor_vaf=0.45,  # Add tumor_vaf for workflow router
         total_depth=100
     )
     
@@ -68,11 +69,11 @@ def test_evidence_aggregation():
         for i, evidence in enumerate(evidence_list[:5]):  # Show first 5
             print(f"   Evidence {i+1}: {evidence.code} ({evidence.source_kb}) - {evidence.description[:50]}...")
         
-        return evidence_list
+        assert len(evidence_list) > 0  # Verify we got evidence
         
     except Exception as e:
         print(f"❌ Evidence aggregation failed: {e}")
-        return []
+        raise
 
 def test_tier_assignment():
     """Test tier assignment with mock evidence"""
@@ -92,6 +93,7 @@ def test_tier_assignment():
         is_oncogene=True,
         is_tumor_suppressor=False,
         vaf=0.45,
+        tumor_vaf=0.45,  # Add tumor_vaf for workflow router
         total_depth=100
     )
     
@@ -110,11 +112,11 @@ def test_tier_assignment():
         print(f"   OncoKB Level: {tier_result.oncokb_scoring.therapeutic_level if tier_result.oncokb_scoring else 'None'}")
         print(f"   Confidence: {tier_result.confidence_score:.2f}")
         
-        return tier_result
+        assert tier_result is not None  # Verify tier was assigned
         
     except Exception as e:
         print(f"❌ Tier assignment failed: {e}")
-        return None
+        raise
 
 def test_integration_flow():
     """Test complete flow with mock data"""
@@ -130,12 +132,13 @@ def test_integration_flow():
             gene_symbol="BRAF", 
             transcript_id="ENST00000288602",
             consequence=["missense_variant"],
-            protein_change="p.Val600Glu",
-            coding_change="c.1799T>A",
+            hgvs_p="p.Val600Glu",
+            hgvs_c="c.1799T>A",
             is_oncogene=True,
             is_tumor_suppressor=False,
             vaf=0.45,
-            depth=100
+            tumor_vaf=0.45,
+            total_depth=100
         ),
         VariantAnnotation(
             chromosome="17",
@@ -150,6 +153,7 @@ def test_integration_flow():
             is_oncogene=False,
             is_tumor_suppressor=True,
             vaf=0.52,
+            tumor_vaf=0.52,
             total_depth=45
         )
     ]
@@ -187,11 +191,12 @@ def test_integration_flow():
         print(f"\n✅ Integration flow completed successfully!")
         print(f"   Variants processed: {len(results)}")
         
-        return results
+        assert len(results) == 2  # Should process both variants
+        assert all(r['amp_tier'] is not None for r in results)  # All should have tiers
         
     except Exception as e:
         print(f"❌ Integration flow failed: {e}")
-        return []
+        raise
 
 if __name__ == "__main__":
     print("=== Annotation Engine Integration Tests ===\n")

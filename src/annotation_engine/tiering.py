@@ -24,6 +24,7 @@ from .models import (
     ContextSpecificTierAssignment, EvidenceWeights, AnalysisType, DynamicSomaticConfidence
 )
 from .evidence_aggregator import EvidenceAggregator
+from .scoring_strategies import EvidenceScoringManager
 
 logger = logging.getLogger(__name__)
 
@@ -370,78 +371,20 @@ class CannedTextGenerator:
 class TieringEngine:
     """Main tiering engine implementing AMP/ASCO/CAP 2017 and VICC/CGC 2022 guidelines"""
     
-    def __init__(self, config: Optional[AnnotationConfig] = None):
+    def __init__(self, config: Optional[AnnotationConfig] = None, workflow_router=None):
         self.config = config or AnnotationConfig(kb_base_path=".refs")
-        self.evidence_aggregator = EvidenceAggregator(self.config.kb_base_path)
+        self.workflow_router = workflow_router
+        self.evidence_aggregator = EvidenceAggregator(self.config.kb_base_path, workflow_router)
         self.text_generator = CannedTextGenerator()
+        self.scoring_manager = EvidenceScoringManager(self.config.evidence_weights)
         
     def _calculate_evidence_score(self, evidence_list: List[Evidence], context: ActionabilityType) -> float:
-        """Calculate quantitative evidence score for a specific context"""
-        context_evidence = [e for e in evidence_list if self._is_evidence_relevant_to_context(e, context)]
-        
-        if not context_evidence:
-            return 0.0
-        
-        # Map evidence to strength levels and calculate weighted score
-        total_score = 0.0
-        max_possible = 0.0
-        
-        weights = self.config.evidence_weights
-        
-        for evidence in context_evidence:
-            weight = 0.0
-            
-            # Determine evidence strength from evidence description/source
-            if "FDA" in evidence.description or evidence.source_kb == "FDA":
-                weight = weights.fda_approved
-            elif "guideline" in evidence.description.lower():
-                weight = weights.professional_guidelines
-            elif "meta-analysis" in evidence.description.lower() or "systematic review" in evidence.description.lower():
-                weight = weights.meta_analysis
-            elif "RCT" in evidence.description or "randomized" in evidence.description.lower():
-                weight = weights.well_powered_rct
-            elif "expert consensus" in evidence.description.lower():
-                weight = weights.expert_consensus
-            elif "multiple studies" in evidence.description.lower():
-                weight = weights.multiple_small_studies
-            elif "case report" in evidence.description.lower():
-                weight = weights.case_reports
-            else:
-                weight = weights.preclinical
-            
-            # Apply context-specific modifiers
-            if "cancer-type-specific" in evidence.description or evidence.data.get("cancer_type_specific"):
-                weight += weights.cancer_type_specific_bonus
-            
-            if "off-label" in evidence.description.lower():
-                weight -= weights.off_label_penalty
-            
-            if "clinical trial" in evidence.description.lower():
-                weight += weights.clinical_trial_bonus
-            
-            # Confidence weighting
-            confidence = evidence.confidence or 0.5
-            effective_weight = weight * confidence
-            
-            total_score += effective_weight
-            max_possible += weights.fda_approved  # Maximum possible weight
-        
-        # Normalize to 0-1 scale
-        return min(1.0, total_score / max(max_possible, 1.0)) if max_possible > 0 else 0.0
+        """Calculate quantitative evidence score for a specific context using strategy pattern"""
+        return self.scoring_manager.calculate_evidence_score(evidence_list, context)
     
     def _is_evidence_relevant_to_context(self, evidence: Evidence, context: ActionabilityType) -> bool:
         """Determine if evidence is relevant to a specific actionability context"""
-        description = evidence.description.lower()
-        
-        if context == ActionabilityType.THERAPEUTIC:
-            return any(term in description for term in ["therapy", "therapeutic", "treatment", "drug", "response", "resistance"])
-        elif context == ActionabilityType.DIAGNOSTIC:
-            return any(term in description for term in ["diagnostic", "diagnosis", "classification", "subtype"])
-        elif context == ActionabilityType.PROGNOSTIC:
-            return any(term in description for term in ["prognosis", "prognostic", "outcome", "survival", "recurrence"])
-        
-        # Default: therapeutic evidence
-        return context == ActionabilityType.THERAPEUTIC
+        return self.scoring_manager._is_evidence_relevant_to_context(evidence, context)
     
     def _assign_context_tier(self, evidence_score: float, evidence_strength: EvidenceStrength, 
                            context: ActionabilityType, cancer_type_specific: bool) -> ContextSpecificTierAssignment:
@@ -495,6 +438,63 @@ class TieringEngine:
         Returns:
             Complete tier assignment result with context-specific tiers
         """
+        
+        # Step 0: Apply workflow-specific variant filtering if router available
+        if self.workflow_router and hasattr(variant_annotation, 'tumor_vaf'):
+            tumor_vaf = variant_annotation.tumor_vaf
+            normal_vaf = getattr(variant_annotation, 'normal_vaf', None)
+            
+            # Get max population frequency from variant
+            max_pop_af = 0.0
+            if variant_annotation.population_frequencies:
+                max_pop_af = max(pf.allele_frequency for pf in variant_annotation.population_frequencies)
+            
+            # Check if variant is in hotspot
+            is_hotspot = bool(variant_annotation.hotspot_evidence)
+            
+            # Apply workflow filtering
+            should_filter = self.workflow_router.should_filter_variant(
+                tumor_vaf=tumor_vaf,
+                normal_vaf=normal_vaf,
+                population_af=max_pop_af,
+                is_hotspot=is_hotspot
+            )
+            
+            if should_filter:
+                # Return filtered result (Tier IV with explanation)
+                # Create minimal AMP scoring for filtered variant
+                filtered_amp_scoring = AMPScoring(
+                    therapeutic_tier=ContextSpecificTierAssignment(
+                        actionability_type=ActionabilityType.THERAPEUTIC,
+                        tier_level=AMPTierLevel.TIER_IV,
+                        evidence_strength=EvidenceStrength.PRECLINICAL,
+                        evidence_score=0.0,
+                        confidence_score=0.1
+                    ),
+                    diagnostic_tier=None,
+                    prognostic_tier=None,
+                    cancer_type_specific=False,
+                    related_cancer_types=[],
+                    overall_confidence=0.1,
+                    evidence_completeness=0.0
+                )
+                
+                return TierResult(
+                    variant_id=f"{variant_annotation.chromosome}:{variant_annotation.position}:{variant_annotation.reference}>{variant_annotation.alternate}",
+                    gene_symbol=variant_annotation.gene_symbol or "Unknown",
+                    hgvs_p=variant_annotation.hgvs_p,
+                    analysis_type=analysis_type,
+                    dsc_scoring=None,
+                    amp_scoring=filtered_amp_scoring,
+                    vicc_scoring=VICCScoring(),
+                    oncokb_scoring=OncoKBScoring(),
+                    evidence=[],
+                    cancer_type=cancer_type,
+                    canned_texts=[],
+                    confidence_score=0.1,
+                    annotation_completeness=0.0,
+                    kb_versions=self._get_kb_versions()
+                )
         
         # Step 1: Aggregate evidence from all knowledge bases with analysis type
         evidence_list = self.evidence_aggregator.aggregate_evidence(variant_annotation, cancer_type, analysis_type)
@@ -602,30 +602,8 @@ class TieringEngine:
         )
     
     def _determine_strongest_evidence(self, evidence_list: List[Evidence], context: ActionabilityType) -> EvidenceStrength:
-        """Determine the strongest evidence type for a given context"""
-        context_evidence = [e for e in evidence_list if self._is_evidence_relevant_to_context(e, context)]
-        
-        if not context_evidence:
-            return EvidenceStrength.PRECLINICAL
-        
-        # Map evidence descriptions to strength levels (highest first)
-        strength_hierarchy = [
-            (EvidenceStrength.FDA_APPROVED, ["FDA", "fda-approved"]),
-            (EvidenceStrength.PROFESSIONAL_GUIDELINES, ["guideline", "professional", "society"]),
-            (EvidenceStrength.META_ANALYSIS, ["meta-analysis", "systematic review"]),
-            (EvidenceStrength.WELL_POWERED_RCT, ["RCT", "randomized", "well-powered"]),
-            (EvidenceStrength.EXPERT_CONSENSUS, ["expert consensus", "consensus"]),
-            (EvidenceStrength.MULTIPLE_SMALL_STUDIES, ["multiple studies", "multiple small"]),
-            (EvidenceStrength.CASE_REPORTS, ["case report", "case series"]),
-            (EvidenceStrength.PRECLINICAL, ["preclinical", "in vitro", "in vivo"])
-        ]
-        
-        for strength, keywords in strength_hierarchy:
-            for evidence in context_evidence:
-                if any(keyword in evidence.description.lower() for keyword in keywords):
-                    return strength
-        
-        return EvidenceStrength.PRECLINICAL
+        """Determine the strongest evidence type for a given context using strategy pattern"""
+        return self.scoring_manager.determine_strongest_evidence(evidence_list, context)
     
     def _apply_dsc_tier_logic(self, amp_scoring: AMPScoring, dsc_scoring: DynamicSomaticConfidence) -> AMPScoring:
         """

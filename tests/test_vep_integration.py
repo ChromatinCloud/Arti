@@ -125,7 +125,7 @@ class TestVEPRunner:
             runner = VEPRunner(config)
             
             assert runner.config == config
-            assert len(runner.default_plugins) == 27  # All evidence-based plugins
+            assert len(runner.default_plugins) == 21  # Available evidence-based plugins (4 unavailable + 2 removed)
     
     def test_build_vep_command_docker(self):
         """Test Docker VEP command building"""
@@ -175,11 +175,13 @@ class TestVEPRunner:
                 )
                 runner = VEPRunner(config)
                 
+                # Use only plugins without data files for testing
+                test_plugins = ["GeneBe", "NMD", "SpliceRegion"]  # These don't need data files
                 cmd = runner._build_vep_command(
                     input_vcf=input_vcf,
                     output_file=output_file,
                     output_format="json",
-                    plugins=runner.default_plugins[:3]  # Test with first 3 plugins
+                    plugins=test_plugins
                 )
                 
                 assert cmd[0] == "/usr/bin/vep"
@@ -187,9 +189,9 @@ class TestVEPRunner:
                 assert "--output_file" in cmd
                 assert "--json" in cmd
                 assert "--plugin" in cmd
-                # Should have multiple plugin arguments for our evidence-based plugin set
+                # Should have plugin arguments for our no-data-file plugins
                 plugin_count = cmd.count("--plugin") 
-                assert plugin_count == 3  # First 3 plugins from default set
+                assert plugin_count == 3  # All 3 no-data-file plugins
     
     @patch('subprocess.run')
     def test_annotate_vcf_success(self, mock_subprocess):

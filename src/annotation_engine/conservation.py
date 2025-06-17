@@ -192,6 +192,83 @@ def get_gerp_loader(refs_dir: Optional[Path] = None) -> GERPLoader:
     return _gerp_loader
 
 
+class PhyloPLoader:
+    """Load and query PhyloP conservation scores from BigWig files"""
+    
+    def __init__(self, refs_dir: Optional[Path] = None):
+        if refs_dir is None:
+            refs_dir = Path(__file__).parent.parent.parent / ".refs"
+        
+        self.refs_dir = Path(refs_dir)
+        self.conservation_dir = self.refs_dir / "functional_predictions" / "plugin_data" / "conservation"
+        self.phylop_file = self.conservation_dir / "hg38.phyloP100way.bw"
+        
+        # BigWig file handle (opened lazily)
+        self._bw_handle = None
+        self._available = None
+        
+    def _get_bigwig_handle(self):
+        """Get BigWig file handle, opening if necessary"""
+        if pyBigWig is None:
+            logger.warning("pyBigWig not available - install with: pip install pyBigWig")
+            return None
+            
+        if self._bw_handle is None:
+            if not self.phylop_file.exists():
+                logger.warning(f"PhyloP conservation file not found: {self.phylop_file}")
+                return None
+                
+            try:
+                self._bw_handle = pyBigWig.open(str(self.phylop_file))
+                logger.info(f"Opened PhyloP conservation file: {self.phylop_file}")
+            except Exception as e:
+                logger.error(f"Failed to open PhyloP BigWig file: {e}")
+                return None
+                
+        return self._bw_handle
+    
+    def is_available(self) -> bool:
+        """Check if PhyloP conservation data is available"""
+        if self._available is None:
+            bw = self._get_bigwig_handle()
+            self._available = bw is not None
+        return self._available
+    
+    @lru_cache(maxsize=10000)
+    def lookup_position(self, chromosome: str, position: int) -> Optional[float]:
+        """Look up PhyloP conservation score for a genomic position"""
+        bw = self._get_bigwig_handle()
+        if bw is None:
+            return None
+        
+        # Ensure chromosome has 'chr' prefix for BigWig lookup
+        chrom = chromosome if chromosome.startswith('chr') else f'chr{chromosome}'
+        
+        try:
+            # BigWig is 0-based, but we accept 1-based positions
+            score = bw.values(chrom, position - 1, position)
+            
+            if score and len(score) > 0 and score[0] is not None:
+                return float(score[0])
+            else:
+                return None
+                
+        except Exception as e:
+            logger.debug(f"PhyloP lookup failed for {chrom}:{position}: {e}")
+            return None
+
+
+# Global instances
+_phylop_loader = None
+
+def get_phylop_loader(refs_dir: Optional[Path] = None) -> PhyloPLoader:
+    """Get global PhyloP loader instance"""
+    global _phylop_loader
+    if _phylop_loader is None:
+        _phylop_loader = PhyloPLoader(refs_dir)
+    return _phylop_loader
+
+
 def lookup_gerp_score(chromosome: str, position: int) -> Optional[float]:
     """
     Convenience function to lookup GERP conservation score

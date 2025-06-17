@@ -41,7 +41,9 @@ class TestIntegrationPipeline:
     def vep_runner(self):
         """Initialize VEP runner for testing"""
         # Use Docker by default to avoid local VEP installation requirements
-        return VEPRunner(use_docker=True, assembly="GRCh38")
+        from annotation_engine.vep_runner import VEPConfiguration
+        config = VEPConfiguration(use_docker=True, assembly="GRCh38")
+        return VEPRunner(config)
     
     @pytest.fixture
     def evidence_aggregator(self):
