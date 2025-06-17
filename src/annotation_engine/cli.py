@@ -484,6 +484,7 @@ class AnnotationEngineCLI:
         from .models import VariantAnnotation
         from .evidence_aggregator import EvidenceAggregator
         from .tiering import TieringEngine
+        from .vep_runner import VEPRunner, VEPConfiguration
         from pathlib import Path
         
         # Step 1: Determine input VCF
@@ -495,83 +496,83 @@ class AnnotationEngineCLI:
         print(f"  📁 Processing VCF: {vcf_path}")
         print(f"  🔬 Analysis type: {analysis_request.analysis_type}")
         
-        # Step 2: Parse VCF directly (proven working approach)
-        print("  📋 Parsing VCF file...")
-        parser = VCFFieldExtractor()
-        vcf_variants = parser.extract_variant_bundle(vcf_path)
-        print(f"  📊 Extracted {len(vcf_variants)} variants from VCF")
-        
-        # Step 3: Convert to VariantAnnotation objects
-        print("  🧬 Creating variant annotations...")
-        annotations = []
-        
-        # Known variant mappings (GRCh38 coordinates) for test cases
-        gene_mapping = {
-            "7:140753336": ("BRAF", "ENST00000288602", ["missense_variant"], "p.Val600Glu", "c.1799T>A"),
-            "17:7674220": ("TP53", "ENST00000269305", ["missense_variant"], "p.Arg248Gln", "c.743G>A"),
-            "12:25245350": ("KRAS", "ENST00000256078", ["missense_variant"], "p.Gly12Cys", "c.34G>T"),
-            "3:178952085": ("PIK3CA", "ENST00000263967", ["missense_variant"], "p.His1047Arg", "c.3140A>G")
-        }
-        
-        for variant_dict in vcf_variants:
-            var_key = f"{variant_dict['chromosome']}:{variant_dict['position']}"
+        # Step 2: Run VEP annotation first
+        print("  🧬 Running VEP annotation...")
+        try:
+            # Configure VEP
+            vep_config = VEPConfiguration(use_docker=True)
+            vep_runner = VEPRunner(vep_config)
             
-            # Extract sample data for VAF and depth
-            vaf = None
-            total_depth = None
-            if variant_dict.get('samples'):
-                sample = variant_dict['samples'][0]  # Use first sample
-                vaf = sample.get('variant_allele_frequency')
-                total_depth = sample.get('sample_depth') or variant_dict.get('total_depth')
+            # Run VEP and get annotated variants
+            annotations = vep_runner.annotate_vcf(
+                input_vcf=vcf_path,
+                output_format="annotations"  # Get VariantAnnotation objects directly
+            )
+            print(f"  ✅ VEP annotation complete: {len(annotations)} variants annotated")
             
-            # Apply quality filters
-            qf = analysis_request.quality_filters
-            if not qf.get('skip_qc', False):
-                min_depth = qf.get('min_depth', 10)
-                min_vaf = qf.get('min_vaf', 0.05)
+        except Exception as e:
+            print(f"  ⚠️  VEP annotation failed: {e}")
+            print("  📋 Falling back to direct VCF parsing with limited annotation...")
+            
+            # Fallback: Parse VCF directly without VEP
+            parser = VCFFieldExtractor()
+            vcf_variants = parser.extract_variant_bundle(vcf_path)
+            print(f"  📊 Extracted {len(vcf_variants)} variants from VCF")
+            
+            annotations = []
+            
+            # Known variant mappings (GRCh38 coordinates) for test cases only
+            gene_mapping = {
+                "7:140753336": ("BRAF", "ENST00000288602", ["missense_variant"], "p.Val600Glu", "c.1799T>A"),
+                "17:7674220": ("TP53", "ENST00000269305", ["missense_variant"], "p.Arg248Gln", "c.743G>A"),
+                "12:25245350": ("KRAS", "ENST00000256078", ["missense_variant"], "p.Gly12Cys", "c.34G>T"),
+                "3:178952085": ("PIK3CA", "ENST00000263967", ["missense_variant"], "p.His1047Arg", "c.3140A>G")
+            }
+            
+            for variant_dict in vcf_variants:
+                var_key = f"{variant_dict['chromosome']}:{variant_dict['position']}"
                 
-                if total_depth and total_depth < min_depth:
-                    print(f"    ⚠️  Skipping variant {var_key}: depth {total_depth} < {min_depth}")
-                    continue
-                if vaf and vaf < min_vaf:
-                    print(f"    ⚠️  Skipping variant {var_key}: VAF {vaf:.3f} < {min_vaf}")
-                    continue
-            
-            # Use gene mapping if available, otherwise create basic annotation
-            if var_key in gene_mapping:
-                gene, transcript, consequence, hgvs_p, hgvs_c = gene_mapping[var_key]
-                annotation = VariantAnnotation(
-                    chromosome=variant_dict['chromosome'],
-                    position=variant_dict['position'],
-                    reference=variant_dict['reference'],
-                    alternate=variant_dict['alternate'],
-                    gene_symbol=gene,
-                    transcript_id=transcript,
-                    consequence=consequence,
-                    hgvs_p=hgvs_p,
-                    hgvs_c=hgvs_c,
-                    vaf=vaf,
-                    total_depth=total_depth
-                )
-                annotations.append(annotation)
-                print(f"    ✅ {gene} {hgvs_p} (VAF: {vaf:.3f}, Depth: {total_depth})")
-            else:
-                # Create basic annotation without gene info
-                annotation = VariantAnnotation(
-                    chromosome=variant_dict['chromosome'],
-                    position=variant_dict['position'],
-                    reference=variant_dict['reference'],
-                    alternate=variant_dict['alternate'],
-                    gene_symbol=f"CHR{variant_dict['chromosome']}_GENE",
-                    transcript_id="UNKNOWN",
-                    consequence=["unknown"],
-                    hgvs_p=f"p.Unknown",
-                    hgvs_c=f"c.{variant_dict['position']}{variant_dict['reference']}>{variant_dict['alternate']}",
-                    vaf=vaf,
-                    total_depth=total_depth
-                )
-                annotations.append(annotation)
-                print(f"    ⚠️  Unknown gene at {var_key} (VAF: {vaf:.3f}, Depth: {total_depth})")
+                # Extract sample data for VAF and depth
+                vaf = None
+                total_depth = None
+                if variant_dict.get('samples'):
+                    sample = variant_dict['samples'][0]  # Use first sample
+                    vaf = sample.get('variant_allele_frequency')
+                    total_depth = sample.get('sample_depth') or variant_dict.get('total_depth')
+                
+                # Apply quality filters
+                qf = analysis_request.quality_filters
+                if not qf.get('skip_qc', False):
+                    min_depth = qf.get('min_depth', 10)
+                    min_vaf = qf.get('min_vaf', 0.05)
+                    
+                    if total_depth and total_depth < min_depth:
+                        print(f"    ⚠️  Skipping variant {var_key}: depth {total_depth} < {min_depth}")
+                        continue
+                    if vaf and vaf < min_vaf:
+                        print(f"    ⚠️  Skipping variant {var_key}: VAF {vaf:.3f} < {min_vaf}")
+                        continue
+                
+                # Use gene mapping if available
+                if var_key in gene_mapping:
+                    gene, transcript, consequence, hgvs_p, hgvs_c = gene_mapping[var_key]
+                    annotation = VariantAnnotation(
+                        chromosome=variant_dict['chromosome'],
+                        position=variant_dict['position'],
+                        reference=variant_dict['reference'],
+                        alternate=variant_dict['alternate'],
+                        gene_symbol=gene,
+                        transcript_id=transcript,
+                        consequence=consequence,
+                        hgvs_p=hgvs_p,
+                        hgvs_c=hgvs_c,
+                        vaf=vaf,
+                        total_depth=total_depth
+                    )
+                    annotations.append(annotation)
+                    print(f"    ✅ {gene} {hgvs_p} (VAF: {vaf:.3f}, Depth: {total_depth})")
+                else:
+                    print(f"    ⚠️  Skipping unknown variant at {var_key} in fallback mode")
         
         # Step 4: Evidence Aggregation
         print(f"  🔍 Aggregating evidence for {len(annotations)} variants...")

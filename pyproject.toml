@@ -17,6 +17,8 @@ pyyaml = "^6.0"
 httpx = "^0.25"
 pysam = "^0.22"
 vcfpy = "^0.13"
+sqlalchemy = "^2.0"
+pybigwig = "^0.3.24"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2"

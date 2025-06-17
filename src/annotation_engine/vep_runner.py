@@ -152,10 +152,10 @@ class VEPConfiguration:
         
         # Default plugins that should be checked
         plugin_checks = {
-            "dbNSFP": self.refs_dir / "functional_predictions" / "plugin_data" / "pathogenicity" / "dbNSFP5.1.gz",
-            "AlphaMissense": self.refs_dir / "functional_predictions" / "plugin_data" / "protein_impact" / "AlphaMissense_hg38.tsv.gz",
-            "REVEL": self.refs_dir / "functional_predictions" / "plugin_data" / "pathogenicity" / "revel_all_chromosomes.tsv.gz",
-            "SpliceAI": self.refs_dir / "functional_predictions" / "plugin_data" / "splicing" / "spliceai_scores.raw.snv.hg38.vcf.gz",
+            "dbNSFP": self.refs_dir / "variant" / "vcf" / "dbnsfp" / "dbnsfp.vcf.gz",
+            "AlphaMissense": self.refs_dir / "alphamissense" / "AlphaMissense_hg38.tsv.gz",
+            "REVEL": self.refs_dir / "functional_predictions" / "plugin_data" / "pathogenicity" / "revel_with_transcript_ids",
+            "SpliceAI": self.refs_dir / "spliceai" / "spliceai_scores.raw.snv.ensembl_mane.grch38.110.vcf.gz",
             "gnomAD": self.refs_dir / "population_frequencies" / "gnomad" / "gnomad.genomes.v3.1.2.sites.vcf.bgz",
             "ClinVar": self.refs_dir / "clinical_evidence" / "clinvar" / "clinvar.vcf.gz",
             "LoFtool": self.refs_dir / "functional_predictions" / "plugin_data" / "gene_constraint" / "LoFtool_scores.txt"
@@ -192,33 +192,53 @@ class VEPRunner:
         self.config.validate()
         
         # VEP plugins for clinical annotation (evidence-based selection)
-        # NOTE: Plugin selection rationale in ./docs/VEP_PLUGINS.md also guides 
-        # rule/tiering logic - high evidence plugins get higher weights in scoring
+        # NOTE: Plugin selection rationale in ./docs/VEP_PLUGINS.md 
+        # Plugins marked as "Yes-Plugin" - used via VEP for efficient consequence-dependent lookup
+        # AVADA marked as "Yes-Flatfile" - used via direct file access for custom evidence aggregation
+        # Some plugins excluded due to file size constraints (e.g., FATHMM_MKL)
         self.default_plugins = [
-            # Core pathogenicity predictors (using actual available files)
-            "AlphaMissense,{refs_dir}/functional_predictions/plugin_data/protein_impact/AlphaMissense_gene_hg38.tsv.gz",
-            "REVEL,{refs_dir}/functional_predictions/plugin_data/pathogenicity/revel_with_transcript_ids",
+            # Core pathogenicity predictors (High Evidence) - FILES AVAILABLE ✓
+            "AlphaMissense,{refs_dir}/alphamissense/AlphaMissense_hg38.tsv.gz",
+            "dbNSFP,{refs_dir}/variant/vcf/dbnsfp/dbnsfp.vcf.gz,ALL",
+            "FATHMM,{refs_dir}/functional_predictions/plugin_data/pathogenicity/fathmm.v2.3.SQL.gz",
             "PrimateAI,{refs_dir}/functional_predictions/plugin_data/protein_impact/PrimateAI_scores_v0.2_hg38.tsv.gz",
+            "REVEL,{refs_dir}/functional_predictions/plugin_data/pathogenicity/revel_with_transcript_ids",
+            "SpliceAI,{refs_dir}/spliceai/spliceai_scores.raw.snv.ensembl_mane.grch38.110.vcf.gz",
             
-            # Splicing predictors
-            "SpliceAI,{refs_dir}/functional_predictions/plugin_data/splicing/spliceai_scores.raw.snv.hg38.vcf.gz",
-            
-            # Population frequency
-            "gnomAD,{refs_dir}/population_frequencies/gnomad/gnomad.exomes.v4.0.sites.chr1.vcf.bgz",
-            
-            # Gene constraint and loss-of-function
+            # Moderate Evidence predictors - FILES AVAILABLE ✓  
+            "BayesDel,{refs_dir}/functional_predictions/plugin_data/pathogenicity/BayesDel_170824_addAF.tgz",
+            "Conservation,{refs_dir}/functional_predictions/plugin_data/conservation/hg38.phyloP100way.bw,phyloP100way",
             "LoFtool,{refs_dir}/functional_predictions/plugin_data/gene_constraint/LoFtool_scores.txt",
+            "MaveDB,{refs_dir}/functional_predictions/plugin_data/mavedb/MaveDB_variants.tsv.gz",
+            "Phenotypes,{refs_dir}/functional_predictions/plugin_data/phenotype/PhenotypesOrthologous_homo_sapiens_112_GRCh38.gff3.gz",
+            "UTRAnnotator,{refs_dir}/functional_predictions/plugin_data/utr/uORF_5UTR_GRCh38_PUBLIC.txt",
+            
+            # Population frequency 
+            "gnomAD,{refs_dir}/population_frequencies/gnomad/gnomad.exomes.v4.0.sites.chr1.vcf.bgz",
             
             # Clinical evidence
             "ClinVar,{refs_dir}/clinical_evidence/clinvar/clinvar.vcf.gz,exact",
             
-            # Additional pathogenicity tools (available but need proper format)
-            # "FATHMM,{refs_dir}/functional_predictions/plugin_data/pathogenicity/fathmm.v2.3.SQL.gz",
+            # Structural variants
+            "StructuralVariantOverlap,{refs_dir}/population_frequencies/gnomad/gnomad_v2.1_sv.sites.vcf.gz",
             
-            # Plugins requiring specific data files not yet available:
-            # "dbNSFP,{refs_dir}/functional_predictions/plugin_data/pathogenicity/dbNSFP5.1.gz,ALL",  
-            # "EVE,{refs_dir}/functional_predictions/plugin_data/protein_impact/eve_merged.vcf.gz",
-            # "VARITY,{refs_dir}/functional_predictions/plugin_data/protein_impact/VARITY_R_LOO_v1.0.tsv.gz",
+            # Emerging Evidence predictors - FILES AVAILABLE ✓
+            "Enformer,{refs_dir}/functional_predictions/plugin_data/regulatory/enformer_grch38.vcf.gz",
+            
+            # API/Rule-based plugins (no external data files required)
+            "GeneBe",  # Automatic ACMG flags via API/rules
+            "NMD",     # NMD escape prediction via rules
+            "SpliceRegion",  # Built-in VEP plugin for splice region annotation
+            
+            # === UNAVAILABLE PLUGINS (Files Not Found) ===
+            # These 6 plugins are unavailable and need data files to be obtained:
+            
+            # "ClinPred,{refs_dir}/functional_predictions/plugin_data/pathogenicity/ClinPred_scores.vcf.gz",  # ❌ Missing
+            # "dbscSNV,{refs_dir}/functional_predictions/plugin_data/splicing/dbscSNV1.1_hg38.txt.gz",      # ❌ Missing  
+            # "EVE,{refs_dir}/functional_predictions/plugin_data/protein_impact/eve_merged.vcf.gz",          # ❌ Missing
+            # "PolyPhen_SIFT,{refs_dir}/functional_predictions/plugin_data/pathogenicity/polyphen_sift_scores.vcf.gz",  # ❌ Missing
+            # "VARITY,{refs_dir}/functional_predictions/plugin_data/protein_impact/VARITY_R_LOO_v1.0.tsv.gz",  # ❌ Missing (trying install.pl)
+            # "gnomADc,{refs_dir}/population_frequencies/gnomad/gnomad_coverage.vcf.gz",                   # ❌ Missing
         ]
     
     def annotate_vcf(self, 

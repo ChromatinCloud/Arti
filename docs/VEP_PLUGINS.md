@@ -1,32 +1,32 @@
 Plugin	Resource description	PCGR	Hartwig	Sarek	OncoVI	EvidenceFor	Citations	Decision
-AlphaMissense	DeepMind missense DL score	Y	Y	N	N	High	:contentReference[oaicite:0]{index=0}	Yes
+AlphaMissense	DeepMind missense DL score	Y	Y	N	N	High	:contentReference[oaicite:0]{index=0}	Yes-Plugin
 AncestralAllele	Inferred ancestral allele	N	N	N	N	N/A	:contentReference[oaicite:1]{index=1}	No
-AVADA	Literature-mined variant evidence	Y	N	N	N	Moderate	:contentReference[oaicite:2]{index=2}	Yes
-BayesDel	Bayesian meta-deleteriousness	Y	N	N	N	Moderate	:contentReference[oaicite:3]{index=3}	Yes
+AVADA	Literature-mined variant evidence	Y	N	N	N	Moderate	:contentReference[oaicite:2]{index=2}	Yes-Flatfile
+BayesDel	Bayesian meta-deleteriousness	Y	N	N	N	Moderate	:contentReference[oaicite:3]{index=3}	Yes-Plugin
 Blosum62	BLOSUM62 substitution score	N	N	N	N	N/A	:contentReference[oaicite:4]{index=4}	No
 CADD	Combined Annotation Dependent Depletion	Y	Y	Y	N	High	:contentReference[oaicite:5]{index=5}	No – PAID
 CAPICE	Integrated pathogenicity classifier	Y	N	N	N	Moderate	:contentReference[oaicite:6]{index=6}	No
 Carol	Consensus deleteriousness	N	N	N	N	N/A	:contentReference[oaicite:7]{index=7}	No
 CCDSFilter	Keep only CCDS transcripts	N	N	N	N	N/A	:contentReference[oaicite:8]{index=8}	No
-ClinPred	Ensemble pathogenicity score	Y	N	N	N	Moderate	:contentReference[oaicite:9]{index=9}	Yes
+ClinPred	Ensemble pathogenicity score	Y	N	N	N	Moderate	:contentReference[oaicite:9]{index=9}	Yes-Plugin
 Condel	SIFT + PolyPhen consensus	Y	N	N	N	Moderate	:contentReference[oaicite:10]{index=10}	No
-Conservation	GERP/PhyloP/PhastCons	Y	Y	N	N	Moderate	:contentReference[oaicite:11]{index=11}	Yes
+Conservation	GERP/PhyloP/PhastCons	Y	Y	N	N	Moderate	:contentReference[oaicite:11]{index=11}	Yes-Plugin
 CSN	Clinical Sequence Nomenclature	N	N	N	N	N/A	:contentReference[oaicite:12]{index=12}	No
 DAS	Distributed Annotation System hits	N	N	N	N	N/A	:contentReference[oaicite:13]{index=13}	No
-dbNSFP	Multi-tool functional meta-table	Y	Y	Y	Y	High	:contentReference[oaicite:14]{index=14}	Yes
-dbscSNV	ADA/RF splice scores	Y	Y	N	N	Moderate	:contentReference[oaicite:15]{index=15}	Yes
+dbNSFP	Multi-tool functional meta-table	Y	Y	Y	Y	High	:contentReference[oaicite:14]{index=14}	Yes-Plugin
+dbscSNV	ADA/RF splice scores	Y	Y	N	N	Moderate	:contentReference[oaicite:15]{index=15}	Yes-Plugin
 DeNovo	Trios: de-novo flag via PED	N	N	N	N	N/A	:contentReference[oaicite:16]{index=16}	No
 DosageSensitivity	Haplo-/triplo-sensitivity	N	N	N	N	N/A	:contentReference[oaicite:17]{index=17}	No
 Downstream	Nearest downstream gene name	N	N	N	N	N/A	:contentReference[oaicite:18]{index=18}	No
 Draw	Mini SVG of variant context	N	N	N	N	N/A	:contentReference[oaicite:19]{index=19}	No
-EVE	Evolutionary model missense score	Y	N	N	N	High	:contentReference[oaicite:20]{index=20}	Yes
-Enformer	DeepMind expression impact	N	N	N	N	Emerging	:contentReference[oaicite:21]{index=21}	Yes
-FATHMM	HMM pathogenicity score	Y	N	N	N	Moderate	:contentReference[oaicite:22]{index=22}	Yes
-FATHMM_MKL	MKL meta-score	Y	N	N	N	Moderate	:contentReference[oaicite:23]{index=23}	Yes
+EVE	Evolutionary model missense score	Y	N	N	N	High	:contentReference[oaicite:20]{index=20}	Yes-Plugin
+Enformer	DeepMind expression impact	N	N	N	N	Emerging	:contentReference[oaicite:21]{index=21}	Yes-Plugin
+FATHMM	HMM pathogenicity score	Y	N	N	N	Moderate	:contentReference[oaicite:22]{index=22}	Yes-Plugin
+FATHMM_MKL	MKL meta-score	Y	N	N	N	Moderate	:contentReference[oaicite:23]{index=23}	No
 FlagLRG	Tag LRG transcripts	N	N	N	N	N/A	:contentReference[oaicite:24]{index=24}	No
 FunMotifs	Regulatory “funMotifs” overlaps	N	N	N	N	N/A	:contentReference[oaicite:25]{index=25}	No
 G2P	Gene2Phenotype matches	N	N	N	N	N/A	:contentReference[oaicite:26]{index=26}	No
-GeneBe	Automatic ACMG flags	N	N	N	N	Emerging	:contentReference[oaicite:27]{index=27}	Yes
+GeneBe	Automatic ACMG flags	N	N	N	N	Emerging	:contentReference[oaicite:27]{index=27}	Yes-Plugin
 GeneSplicer	GeneSplicer splice predictions	N	N	N	N	N/A	:contentReference[oaicite:28]{index=28}	No
 Geno2MP	Rare-disease genotype-phenotype	N	N	N	N	N/A	:contentReference[oaicite:29]{index=29}	No
 GO	Gene Ontology terms	N	N	N	N	N/A	:contentReference[oaicite:30]{index=30}	No
@@ -38,11 +38,11 @@ IntAct	Protein–protein interactions	N	N	N	N	N/A	:contentReference[oaicite:35]{
 LD	1000 G LD (r²)	N	N	N	N	N/A	:contentReference[oaicite:36]{index=36}	No
 LOEUF	gnomAD constraint score	N	N	N	N	N/A	:contentReference[oaicite:37]{index=37}	No
 LOVD	Leiden Open Variant links	N	N	N	N	N/A	:contentReference[oaicite:38]{index=38}	No
-LoFtool	Gene-level LoF intolerance	Y	Y	N	N	Moderate	:contentReference[oaicite:39]{index=39}	Yes
+LoFtool	Gene-level LoF intolerance	Y	Y	N	N	Moderate	:contentReference[oaicite:39]{index=39}	Yes-Plugin
 LoFTEE	Loss-of-function filter	N	N	Y	N	High	:contentReference[oaicite:40]{index=40}	No
 LocalID	Add internal lab IDs	N	N	N	N	N/A	:contentReference[oaicite:41]{index=41}	No
 Mastermind	Full-text literature index	Y	Y	N	N	Moderate	:contentReference[oaicite:42]{index=42}	No – PAID
-MaveDB	Deep-mutational-scanning scores	Y	N	N	N	High	:contentReference[oaicite:43]{index=43}	Yes
+MaveDB	Deep-mutational-scanning scores	Y	N	N	N	High	:contentReference[oaicite:43]{index=43}	Yes-Plugin
 MaxEntScan	Splice-strength ΔΨ model	Y	Y	N	N	Moderate	:contentReference[oaicite:44]{index=44}	No
 MPC	Missense badness + constraint	Y	N	N	N	Moderate	:contentReference[oaicite:45]{index=45}	No
 MTR	Missense tolerance ratio	Y	N	N	N	Moderate	:contentReference[oaicite:46]{index=46}	No
@@ -50,38 +50,44 @@ mutfunc	Structure/function impact	N	N	N	N	N/A	:contentReference[oaicite:47]{inde
 neXtProt	Protein feature overlaps	N	N	N	N	N/A	:contentReference[oaicite:48]{index=48}	No
 NearestExonJB	Jensen-Brøndum exon distance	N	N	N	N	N/A	:contentReference[oaicite:49]{index=49}	No
 NearestGene	Nearest gene (any strand)	N	N	N	N	N/A	:contentReference[oaicite:50]{index=50}	No
-NMD	NMD escape prediction	Y	Y	N	N	Emerging	:contentReference[oaicite:51]{index=51}	Yes
+NMD	NMD escape prediction	Y	Y	N	N	Emerging	:contentReference[oaicite:51]{index=51}	Yes-Plugin
 NonSynonymousFilter	Keep missense/LoF only	N	N	N	N	N/A	:contentReference[oaicite:52]{index=52}	No
 OpenTargets	OT-Genetics L2G score	N	N	N	N	N/A	:contentReference[oaicite:53]{index=53}	No
 Paralogues	Paralogue annotation	N	N	N	N	N/A	:contentReference[oaicite:54]{index=54}	No
 PhenotypeOrthologous	Orthologue phenotypes	N	N	N	N	N/A	:contentReference[oaicite:55]{index=55}	No
-Phenotypes	ClinVar/OMIM links	Y	Y	N	N	Moderate	:contentReference[oaicite:56]{index=56}	Yes
+Phenotypes	ClinVar/OMIM links	Y	Y	N	N	Moderate	:contentReference[oaicite:56]{index=56}	Yes-Plugin
 pLI	ExAC/gnomAD pLI	N	N	N	N	N/A	:contentReference[oaicite:57]{index=57}	No
 PON_P2	PON-P2 pathogenicity	N	N	N	N	N/A	:contentReference[oaicite:58]{index=58}	No
-PolyPhen_SIFT	PolyPhen2 & SIFT scores	Y	Y	N	N	Moderate	:contentReference[oaicite:59]{index=59}	Yes
+PolyPhen_SIFT	PolyPhen2 & SIFT scores	Y	Y	N	N	Moderate	:contentReference[oaicite:59]{index=59}	Yes-Plugin
 PostGAP	Post-GWAS causal ranks	N	N	N	N	N/A	:contentReference[oaicite:60]{index=60}	No
-PrimateAI	DL primate missense score	Y	N	N	N	High	:contentReference[oaicite:61]{index=61}	Yes
+PrimateAI	DL primate missense score	Y	N	N	N	High	:contentReference[oaicite:61]{index=61}	Yes-Plugin
 ProteinSeqs	Fetch UniProt FASTA	N	N	N	N	N/A	:contentReference[oaicite:62]{index=62}	No
 RankFilter	Keep top consequence	N	N	N	N	N/A	:contentReference[oaicite:63]{index=63}	No
-REVEL	Ensemble missense score	Y	Y	Y	N	High	:contentReference[oaicite:64]{index=64}	Yes
+REVEL	Ensemble missense score	Y	Y	Y	N	High	:contentReference[oaicite:64]{index=64}	Yes-Plugin
 RefSeqHGVS	HGVS on RefSeq transcripts	N	N	N	N	N/A	:contentReference[oaicite:65]{index=65}	No
 ReferenceQuality	Low-quality reference regions	N	N	N	N	N/A	:contentReference[oaicite:66]{index=66}	No
 RiboseqORFs	Ribo-seq ORF evidence	N	N	N	N	Emerging	:contentReference[oaicite:67]{index=67}	No
 SameCodon	Other alleles at codon	N	N	N	N	N/A	:contentReference[oaicite:68]{index=68}	No
 satMutMPRA	Saturation-MPRA scores	N	N	N	N	Emerging	:contentReference[oaicite:69]{index=69}	No
 SingleLetterAA	AA → single-letter code	N	N	N	N	N/A	:contentReference[oaicite:70]{index=70}	No
-SpliceAI	Illumina DL splice score	Y	Y	Y	Y	High	:contentReference[oaicite:71]{index=71}	Yes
-SpliceRegion	± flank region tag	Y	Y	Y	N	Emerging	:contentReference[oaicite:72]{index=72}	Yes
+SpliceAI	Illumina DL splice score	Y	Y	Y	Y	High	:contentReference[oaicite:71]{index=71}	Yes-Plugin
+SpliceRegion	± flank region tag	Y	Y	Y	N	Emerging	:contentReference[oaicite:72]{index=72}	Yes-Plugin
 SpliceVault	Cryptic-splice likelihood	N	N	N	N	Emerging	:contentReference[oaicite:73]{index=73}	No
-StructuralVariantOverlap	Gene-break overlaps	Y	Y	N	N	Moderate	:contentReference[oaicite:74]{index=74}	Yes
+StructuralVariantOverlap	Gene-break overlaps	Y	Y	N	N	Moderate	:contentReference[oaicite:74]{index=74}	Yes-Plugin
 SubsetVCF	Restrict to sub-VCF	N	N	N	N	N/A	:contentReference[oaicite:75]{index=75}	No
 TSSDistance	Distance to canonical TSS	N	N	N	N	N/A	:contentReference[oaicite:76]{index=76}	No
 TranscriptAnnotator	MANE/CCDS flags	N	N	N	N	N/A	:contentReference[oaicite:77]{index=77}	No
-UTRAnnotator	5′/3′-UTR impact class	Y	N	N	N	Emerging	:contentReference[oaicite:78]{index=78}	Yes
-VARITY	Rare-missense DL ensemble	Y	N	N	N	High	:contentReference[oaicite:79]{index=79}	Yes
-gnomADc	gnomAD depth/coverage	Y	Y	N	N	Moderate	:contentReference[oaicite:80]{index=80}	Yes
-gnomAD	gnomAD allele frequencies	N	Y	N	N	High	:contentReference[oaicite:81]{index=81}	Yes
+UTRAnnotator	5′/3′-UTR impact class	Y	N	N	N	Emerging	:contentReference[oaicite:78]{index=78}	Yes-Plugin
+VARITY	Rare-missense DL ensemble	Y	N	N	N	High	:contentReference[oaicite:79]{index=79}	Yes-Plugin
+gnomADc	gnomAD depth/coverage	Y	Y	N	N	Moderate	:contentReference[oaicite:80]{index=80}	Yes-Plugin
+gnomAD	gnomAD allele frequencies	N	Y	N	N	High	:contentReference[oaicite:81]{index=81}	Yes-Plugin
 ```
+
+### Decision Notes
+
+**Yes-Plugin**: Used via VEP plugins for efficient consequence-dependent lookup and automated integration with VEP's annotation pipeline.
+
+**Yes-Flatfile**: Used as direct flat file access for custom evidence aggregation logic required for AMP/VICC clinical scoring. AVADA requires complex literature evidence parsing that is better handled through direct file access rather than VEP plugin interface.
 
 ### Citation map
 

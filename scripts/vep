@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REFS_DIR="$REPO_ROOT/.refs"
-VEP_CACHE_DIR="$REFS_DIR/vep/cache"
-VEP_PLUGINS_DIR="$REFS_DIR/vep/plugins"
+VEP_CACHE_DIR="$REFS_DIR/functional_predictions/vep_cache"
+VEP_PLUGINS_DIR="$REFS_DIR/functional_predictions/vep_plugins"
 DOCKER_TAG="release_114.1"
 
 INPUT_DIR="$(pwd)"
@@ -27,5 +27,5 @@ docker run --rm \
   --offline \
   --dir_cache /opt/vep/.vep \
   --dir_plugins /opt/vep/plugins \
-  --fasta /opt/vep/.vep/homo_sapiens/114_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+  --fasta /opt/vep/.vep/homo_sapiens/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz \
   "$@"
