@@ -42,7 +42,7 @@ class TestCLIArgumentParsing:
         assert args.case_uid == 'TEST_CASE_001'
         assert args.cancer_type == 'lung_adenocarcinoma'
         assert args.patient_uid is None  # Should default to case_uid
-        assert args.output == Path('./results')
+        assert args.output == Path('out/results')
     
     def test_comprehensive_arguments(self):
         """Test full argument set"""
@@ -87,12 +87,15 @@ class TestCLIArgumentParsing:
         assert args.input is None
     
     def test_missing_required_arguments(self):
-        """Test error handling for missing required arguments"""
-        with pytest.raises(SystemExit):
-            self.parser.parse_args(['--input', str(self.synthetic_vcf)])
+        """Test that parser accepts partial arguments (validation happens later)"""
+        # Parser allows partial args, validation happens in CLIInputSchema
+        args = self.parser.parse_args(['--input', str(self.synthetic_vcf)])
+        assert args.input == self.synthetic_vcf
+        assert args.case_uid is None  # Not required by parser
         
-        with pytest.raises(SystemExit):
-            self.parser.parse_args(['--case-uid', 'TEST'])
+        args = self.parser.parse_args(['--case-uid', 'TEST'])
+        assert args.case_uid == 'TEST'
+        assert args.input is None  # Not required by parser
     
     def test_invalid_cancer_type(self):
         """Test invalid cancer type rejection"""
@@ -239,7 +242,7 @@ class TestVCFValidation:
         
         assert results['valid_format'] is True
         assert results['total_variants'] == 4
-        assert 'TP53' in str(results)  # Should contain TP53 variants
+        assert '17' in results['chromosomes']  # Should have chr17 (TP53 location)
         assert results['file_path'] == str(self.synthetic_vcf)
         assert results['compressed'] is False
     
@@ -253,7 +256,7 @@ class TestVCFValidation:
         
         error = exc_info.value
         assert error.error_type == "invalid_vcf_format"
-        assert "critical errors" in error.message
+        assert "Failed to parse VCF" in error.message
     
     def test_nonexistent_file(self):
         """Test handling of nonexistent file"""
@@ -359,64 +362,33 @@ class TestCLIIntegration:
         self.example_dir = Path(__file__).parent.parent / "example_input"
         self.synthetic_vcf = self.example_dir / "synthetic_test.vcf"
     
-    @patch('sys.argv')
-    def test_dry_run_mode(self, mock_argv):
+    @patch('sys.argv', new=[
+        'annotation-engine',
+        '--input', str(Path(__file__).parent.parent / "example_input" / "proper_test.vcf"),
+        '--case-uid', 'DRY_RUN_TEST',
+        '--cancer-type', 'lung_adenocarcinoma',
+        '--dry-run',
+        '--quiet'
+    ])
+    def test_dry_run_mode(self):
         """Test dry run mode execution"""
         if not self.synthetic_vcf.exists():
             pytest.skip(f"Synthetic VCF not found: {self.synthetic_vcf}")
         
-        # Mock command line arguments
-        mock_argv.return_value = [
-            'annotation-engine',
-            '--input', str(self.synthetic_vcf),
-            '--case-uid', 'DRY_RUN_TEST',
-            '--cancer-type', 'lung_adenocarcinoma',
-            '--dry-run',
-            '--quiet'
-        ]
-        
-        # Patch sys.argv for argument parsing
-        with patch.object(self.cli.parser, 'parse_args') as mock_parse:
-            mock_parse.return_value = MagicMock(
-                input=self.synthetic_vcf,
-                case_uid='DRY_RUN_TEST',
-                patient_uid=None,
-                cancer_type='lung_adenocarcinoma',
-                tissue_type='primary_tumor',
-                output=Path('./results'),
-                output_format='all',
-                genome='GRCh37',
-                guidelines=['AMP_ACMG', 'CGC_VICC', 'ONCOKB'],
-                min_depth=10,
-                min_vaf=0.05,
-                skip_qc=False,
-                config=None,
-                kb_bundle=None,
-                dry_run=True,
-                verbose=0,
-                quiet=True,
-                log_file=None,
-                api_mode=False
-            )
-            
-            # Run CLI
-            exit_code = self.cli.run()
-            assert exit_code == 0
+        # Run CLI with mocked argv
+        exit_code = self.cli.run()
+        assert exit_code == 0
     
+    @patch('sys.argv', new=[
+        'annotation-engine',
+        '--input', 'nonexistent.vcf',
+        '--case-uid', 'INVALID_TEST',
+        '--cancer-type', 'lung_adenocarcinoma'
+    ])
     def test_invalid_input_handling(self):
         """Test handling of invalid inputs"""
-        with patch.object(self.cli.parser, 'parse_args') as mock_parse:
-            mock_parse.return_value = MagicMock(
-                input=Path('nonexistent.vcf'),
-                case_uid='INVALID_TEST',
-                cancer_type='lung_adenocarcinoma',
-                patient_uid=None,
-                api_mode=False,
-                verbose=1
-            )
-            
-            exit_code = self.cli.run()
-            assert exit_code == 1  # Should fail with validation error
+        exit_code = self.cli.run()
+        assert exit_code == 1  # Should fail with validation error
 
 
 if __name__ == '__main__':

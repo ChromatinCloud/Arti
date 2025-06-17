@@ -228,6 +228,12 @@ class AnnotationEngineCLI:
             help='Run quick test with example data'
         )
         
+        parser.add_argument(
+            '--check-plugins',
+            action='store_true',
+            help='Check VEP plugin status and available data files'
+        )
+        
         return parser
     
     def validate_arguments(self, args: argparse.Namespace) -> CLIInputSchema:
@@ -436,6 +442,10 @@ class AnnotationEngineCLI:
             if args.test:
                 print("🧪 Running quick test with example data...")
                 return self._run_test_mode(args)
+            
+            if args.check_plugins:
+                print("🔍 Checking VEP plugin status...")
+                return self._check_plugin_status()
             
             # Validate required arguments for normal mode
             if not args.input and not args.tumor_vcf:
@@ -816,6 +826,100 @@ class AnnotationEngineCLI:
                 f.write(f"   Confidence: {clinical['confidence_score']:.2f}\n")
         
         print(f"📄 Summary report saved: {summary_file}")
+    
+    def _check_plugin_status(self) -> int:
+        """Check VEP plugin status and data file availability"""
+        from .vep_runner import VEPRunner, VEPConfiguration
+        from pathlib import Path
+        import os
+        
+        try:
+            # Initialize VEP configuration
+            config = VEPConfiguration()
+            runner = VEPRunner(config)
+            
+            print(f"\n📁 VEP Installation Details:")
+            print(f"   Cache directory: {config.cache_dir}")
+            print(f"   Plugins directory: {config.plugins_dir}")
+            print(f"   Reference directory: {config.refs_dir}")
+            print(f"   VEP command: {config.vep_command}")
+            
+            # Check enabled plugins
+            print(f"\n✅ Enabled VEP Plugins ({len(runner.default_plugins)}):")
+            plugin_status = {}
+            
+            for plugin_config in runner.default_plugins:
+                # Parse plugin configuration
+                parts = plugin_config.split(',')
+                plugin_name = parts[0]
+                
+                # Check if data file exists
+                if len(parts) > 1:
+                    data_path = parts[1].replace('{refs_dir}', str(config.refs_dir))
+                    data_file = Path(data_path)
+                    exists = data_file.exists()
+                    size = data_file.stat().st_size if exists else 0
+                    plugin_status[plugin_name] = {
+                        'enabled': True,
+                        'data_file': str(data_file),
+                        'exists': exists,
+                        'size': size
+                    }
+                    
+                    status_icon = "✓" if exists else "✗"
+                    size_str = f"{size / (1024*1024*1024):.1f}GB" if size > 1e9 else f"{size / (1024*1024):.1f}MB" if size > 1e6 else f"{size / 1024:.1f}KB"
+                    print(f"   {status_icon} {plugin_name}: {'Found' if exists else 'MISSING'} ({size_str if exists else 'N/A'})")
+                else:
+                    plugin_status[plugin_name] = {
+                        'enabled': True,
+                        'data_file': None,
+                        'exists': True,
+                        'size': 0
+                    }
+                    print(f"   ✓ {plugin_name}: No data file required")
+            
+            # Check for plugin modules
+            print(f"\n📦 Plugin Modules (.pm files):")
+            plugin_files = list(config.plugins_dir.glob("*.pm"))
+            for pm_file in sorted(plugin_files):
+                print(f"   ✓ {pm_file.name}")
+            
+            # Check for disabled plugins
+            print(f"\n❌ Disabled Plugins (commented out):")
+            # These are hardcoded based on the comments in vep_runner.py
+            disabled = ["ClinPred", "dbscSNV", "VARITY", "gnomADc"]
+            for plugin in disabled:
+                print(f"   - {plugin}: Data file not available")
+            
+            # Summary statistics
+            total_plugins = len(runner.default_plugins)
+            working_plugins = sum(1 for p in plugin_status.values() if p['exists'])
+            missing_plugins = total_plugins - working_plugins
+            
+            print(f"\n📊 Summary:")
+            print(f"   Total enabled plugins: {total_plugins}")
+            print(f"   Working plugins: {working_plugins}")
+            print(f"   Missing data files: {missing_plugins}")
+            
+            # Check VEP cache
+            cache_exists = config.cache_dir.exists()
+            if cache_exists:
+                cache_size = sum(f.stat().st_size for f in config.cache_dir.rglob('*') if f.is_file())
+                cache_size_gb = cache_size / (1024*1024*1024)
+                print(f"   VEP cache size: {cache_size_gb:.1f}GB")
+            else:
+                print(f"   ⚠️  VEP cache not found at {config.cache_dir}")
+            
+            # Recommendations
+            if missing_plugins > 0:
+                print(f"\n💡 Recommendations:")
+                print(f"   Run ./scripts/download_plugin_data.sh to download missing data files")
+            
+            return 0
+            
+        except Exception as e:
+            print(f"❌ Error checking plugin status: {str(e)}")
+            return 1
     
     def _run_test_mode(self, args) -> int:
         """Run quick test with example data"""

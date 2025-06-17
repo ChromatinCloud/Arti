@@ -1,0 +1,98 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "analysis_type": "tumor_only",
+    "genome_build": "GRCh38",
+    "annotation_date": "2025-06-16"
+  },
+  "variants": [
+    {
+      "variant": {
+        "chromosome": "7",
+        "position": 140753336,
+        "reference": "A",
+        "alternate": "T",
+        "gene": "BRAF"
+      },
+      "annotation": {
+        "transcript": "ENST00000288602",
+        "consequence": [
+          "missense_variant"
+        ],
+        "protein_change": "p.Val600Glu",
+        "coding_change": "c.1799T>A"
+      },
+      "evidence": [
+        {
+          "code": "OS1",
+          "source": "OncoVI_Oncogenes",
+          "score": 4,
+          "description": "Potential activating variant in established oncogene BRAF"
+        },
+        {
+          "code": "OM4",
+          "source": "COSMIC_CGC",
+          "score": 2,
+          "description": "Mutation in gene with established role in cancer: oncogene, fusion"
+        },
+        {
+          "code": "ONCOKB_LEVEL_1",
+          "source": "OncoKB",
+          "score": 0,
+          "description": "FDA-approved therapy: Dabrafenib + Trametinib for BRAF V600E in all solid tumors (excluding colorectal cancer)"
+        }
+      ],
+      "tiers": {
+        "amp_tier": "Tier III",
+        "vicc_oncogenicity": "Likely Oncogenic",
+        "oncokb_level": "Level 1"
+      },
+      "confidence": 0.6372,
+      "analysis_type": "TUMOR_ONLY"
+    },
+    {
+      "variant": {
+        "chromosome": "17",
+        "position": 7674220,
+        "reference": "G",
+        "alternate": "A",
+        "gene": "TP53"
+      },
+      "annotation": {
+        "transcript": "ENST00000269305",
+        "consequence": [
+          "missense_variant"
+        ],
+        "protein_change": "p.Arg248Gln",
+        "coding_change": "c.743G>A"
+      },
+      "evidence": [
+        {
+          "code": "OS1",
+          "source": "OncoVI_Oncogenes",
+          "score": 4,
+          "description": "Potential activating variant in established oncogene BRAF"
+        },
+        {
+          "code": "OM4",
+          "source": "COSMIC_CGC",
+          "score": 2,
+          "description": "Mutation in gene with established role in cancer: oncogene, fusion"
+        },
+        {
+          "code": "ONCOKB_LEVEL_1",
+          "source": "OncoKB",
+          "score": 0,
+          "description": "FDA-approved therapy: Dabrafenib + Trametinib for BRAF V600E in all solid tumors (excluding colorectal cancer)"
+        }
+      ],
+      "tiers": {
+        "amp_tier": "Tier IV",
+        "vicc_oncogenicity": "Likely Oncogenic",
+        "oncokb_level": null
+      },
+      "confidence": 0.45249999999999996,
+      "analysis_type": "TUMOR_ONLY"
+    }
+  ]
+}

@@ -17,8 +17,56 @@ This document defines comprehensive testing strategies based on best practices f
 
 ### 1. Unit Tests (Foundation Layer)
 
-Following **PCGR's** modular testing approach:
+Following **PCGR's** modular testing approach with **Strategy Pattern & Dependency Injection** improvements:
 
+#### Evidence Scoring Strategy Tests (NEW - 2025-06-17)
+```python
+# tests/test_scoring_strategies.py
+import pytest
+from annotation_engine.scoring_strategies import (
+    FDAApprovedScorer, GuidelineEvidenceScorer, EvidenceScoringManager
+)
+from annotation_engine.models import Evidence, ActionabilityType, EvidenceWeights
+
+class TestFDAApprovedScorer:
+    """Unit tests for FDA evidence scorer - isolated testability"""
+    
+    def test_can_score_fda_evidence(self, default_weights):
+        scorer = FDAApprovedScorer(default_weights)
+        fda_evidence = Evidence(description="FDA-approved biomarker...")
+        assert scorer.can_score(fda_evidence) == True
+    
+    def test_calculate_score_by_context(self, default_weights):
+        scorer = FDAApprovedScorer(default_weights)
+        therapeutic_score = scorer.calculate_score(evidence, ActionabilityType.THERAPEUTIC)
+        diagnostic_score = scorer.calculate_score(evidence, ActionabilityType.DIAGNOSTIC)
+        assert therapeutic_score > diagnostic_score
+```
+
+#### Dependency Injection Tests (NEW - 2025-06-17)
+```python
+# tests/test_dependency_injection.py  
+from annotation_engine.dependency_injection import (
+    create_test_tiering_engine, DependencyContainer
+)
+from unittest.mock import Mock
+
+def test_tiering_engine_with_mocked_dependencies():
+    """Test TieringEngine with injected mock dependencies"""
+    mock_evidence_aggregator = Mock()
+    mock_scoring_manager = Mock()
+    
+    engine = create_test_tiering_engine(
+        evidence_aggregator=mock_evidence_aggregator,
+        scoring_manager=mock_scoring_manager
+    )
+    
+    # Test with clean mocks - no complex manual setup
+    assert engine.evidence_aggregator == mock_evidence_aggregator
+    assert engine.scoring_manager == mock_scoring_manager
+```
+
+#### Traditional Rule Engine Tests
 ```python
 # tests/unit/test_rule_engine.py
 import pytest

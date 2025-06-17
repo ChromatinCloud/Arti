@@ -8,7 +8,7 @@ import pytest
 import tempfile
 from pathlib import Path
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 import json
 
 # Add the annotation_engine package to the path
@@ -135,6 +135,10 @@ class TestVEPRunner:
             input_vcf = self._create_test_vcf(temp_path)
             output_file = temp_path / "output.json"
             
+            # Create required directories
+            (temp_path / "cache").mkdir(exist_ok=True)
+            (temp_path / "plugins").mkdir(exist_ok=True)
+            
             with patch.object(VEPConfiguration, 'validate', return_value=True):
                 config = VEPConfiguration(
                     use_docker=True,
@@ -193,23 +197,25 @@ class TestVEPRunner:
                 plugin_count = cmd.count("--plugin") 
                 assert plugin_count == 3  # All 3 no-data-file plugins
     
-    @patch('subprocess.run')
-    def test_annotate_vcf_success(self, mock_subprocess):
+    @patch('subprocess.Popen')
+    def test_annotate_vcf_success(self, mock_popen):
         """Test successful VEP annotation"""
         
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_vcf = self._create_test_vcf(temp_path)
             
-            # Mock successful subprocess execution
-            mock_subprocess.return_value.returncode = 0
-            mock_subprocess.return_value.stdout = "VEP annotation completed"
-            mock_subprocess.return_value.stderr = ""
-            
             # Create mock output file
             output_json = temp_path / f"{input_vcf.stem}_vep.json"
             with open(output_json, 'w') as f:
                 json.dump(self.mock_vep_output, f)
+            
+            # Mock successful subprocess execution
+            mock_process = Mock()
+            mock_process.returncode = 0
+            mock_process.poll.return_value = 0
+            mock_process.communicate.return_value = ("", "")
+            mock_popen.return_value = mock_process
             
             with patch.object(VEPConfiguration, 'validate', return_value=True):
                 config = VEPConfiguration(use_docker=False, vep_command="mock_vep")
@@ -237,8 +243,8 @@ class TestVEPRunner:
                     assert variant.population_frequencies[0].database == "gnomAD"
                     assert variant.population_frequencies[0].population == "gnomad_exomes"
     
-    @patch('subprocess.run')
-    def test_annotate_vcf_failure(self, mock_subprocess):
+    @patch('subprocess.Popen')
+    def test_annotate_vcf_failure(self, mock_popen):
         """Test VEP annotation failure handling"""
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -246,10 +252,11 @@ class TestVEPRunner:
             input_vcf = self._create_test_vcf(temp_path)
             
             # Mock failed subprocess execution
-            mock_subprocess.side_effect = ValidationError(
-                error_type="vep_execution_error",
-                message="VEP failed"
-            )
+            mock_process = Mock()
+            mock_process.returncode = 1
+            mock_process.poll.return_value = 1
+            mock_process.communicate.return_value = ("", "VEP failed with error")
+            mock_popen.return_value = mock_process
             
             with patch.object(VEPConfiguration, 'validate', return_value=True):
                 config = VEPConfiguration(use_docker=False, vep_command="mock_vep")

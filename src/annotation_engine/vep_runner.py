@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union, Tuple
 import shutil
 import os
+import time
+from tqdm import tqdm
 
 from .models import VariantAnnotation, PopulationFrequency
 from .validation.error_handler import ValidationError
@@ -303,19 +305,47 @@ class VEPRunner:
                 plugins=plugins or self.default_plugins
             )
             
-            # Execute VEP
+            # Execute VEP with progress indication
             logger.info(f"Executing VEP: {' '.join(vep_cmd[:3])}...")  # Log abbreviated command
             
             try:
-                result = subprocess.run(
+                # Start VEP process
+                process = subprocess.Popen(
                     vep_cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=3600,  # 1 hour timeout
-                    check=True
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
                 )
                 
-                logger.info("VEP annotation completed successfully")
+                # Show progress during execution
+                with tqdm(desc="VEP annotation", unit="sec", dynamic_ncols=True) as pbar:
+                    start_time = time.time()
+                    while process.poll() is None:
+                        elapsed = time.time() - start_time
+                        pbar.set_postfix(elapsed=f"{elapsed:.1f}s")
+                        pbar.update(1)
+                        time.sleep(1)
+                    
+                    # Get final result
+                    stdout, stderr = process.communicate()
+                    elapsed = time.time() - start_time
+                    pbar.set_postfix(elapsed=f"{elapsed:.1f}s", status="complete")
+                
+                # Check if process succeeded
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        process.returncode, vep_cmd, stdout, stderr
+                    )
+                
+                # Create result object for compatibility
+                class VEPResult:
+                    def __init__(self, returncode, stdout, stderr):
+                        self.returncode = returncode
+                        self.stdout = stdout
+                        self.stderr = stderr
+                
+                result = VEPResult(process.returncode, stdout, stderr)
+                logger.info(f"VEP annotation completed successfully in {elapsed:.1f} seconds")
                 
                 if result.stderr:
                     logger.debug(f"VEP stderr: {result.stderr}")

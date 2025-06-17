@@ -25,6 +25,10 @@ from .models import (
 )
 from .evidence_aggregator import EvidenceAggregator
 from .scoring_strategies import EvidenceScoringManager
+from .dependency_injection import (
+    EvidenceAggregatorInterface, WorkflowRouterInterface, 
+    CannedTextGeneratorInterface, ScoringManagerInterface
+)
 
 logger = logging.getLogger(__name__)
 
@@ -371,12 +375,40 @@ class CannedTextGenerator:
 class TieringEngine:
     """Main tiering engine implementing AMP/ASCO/CAP 2017 and VICC/CGC 2022 guidelines"""
     
-    def __init__(self, config: Optional[AnnotationConfig] = None, workflow_router=None):
+    def __init__(self, 
+                 config: Optional[AnnotationConfig] = None, 
+                 workflow_router: Optional[WorkflowRouterInterface] = None,
+                 evidence_aggregator: Optional[EvidenceAggregatorInterface] = None,
+                 text_generator: Optional[CannedTextGeneratorInterface] = None,
+                 scoring_manager: Optional[ScoringManagerInterface] = None):
+        """
+        Initialize TieringEngine with optional dependency injection
+        
+        Args:
+            config: Annotation configuration
+            workflow_router: Optional workflow router for variant filtering
+            evidence_aggregator: Optional evidence aggregator (for testing)
+            text_generator: Optional text generator (for testing)
+            scoring_manager: Optional scoring manager (for testing)
+        """
         self.config = config or AnnotationConfig(kb_base_path=".refs")
         self.workflow_router = workflow_router
-        self.evidence_aggregator = EvidenceAggregator(self.config.kb_base_path, workflow_router)
-        self.text_generator = CannedTextGenerator()
-        self.scoring_manager = EvidenceScoringManager(self.config.evidence_weights)
+        
+        # Use injected dependencies or create defaults
+        if evidence_aggregator is not None:
+            self.evidence_aggregator = evidence_aggregator
+        else:
+            self.evidence_aggregator = EvidenceAggregator(self.config.kb_base_path, workflow_router)
+        
+        if text_generator is not None:
+            self.text_generator = text_generator
+        else:
+            self.text_generator = CannedTextGenerator()
+        
+        if scoring_manager is not None:
+            self.scoring_manager = scoring_manager
+        else:
+            self.scoring_manager = EvidenceScoringManager(self.config.evidence_weights)
         
     def _calculate_evidence_score(self, evidence_list: List[Evidence], context: ActionabilityType) -> float:
         """Calculate quantitative evidence score for a specific context using strategy pattern"""

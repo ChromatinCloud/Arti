@@ -28,6 +28,36 @@ This document defines how clinical interpretation rules are implemented based on
 
 ## Rule Engine Structure
 
+### 0. Evidence Scoring Architecture (Updated 2025-06-17)
+
+**Strategy Pattern Implementation** for modular, testable evidence scoring:
+
+```python
+# src/annotation_engine/scoring_strategies.py
+class EvidenceScorer(ABC):
+    """Abstract base for evidence scoring strategies"""
+    @abstractmethod
+    def can_score(self, evidence: Evidence) -> bool: ...
+    @abstractmethod 
+    def calculate_score(self, evidence: Evidence, context: ActionabilityType) -> float: ...
+
+class FDAApprovedScorer(EvidenceScorer):
+    """Handles FDA-approved biomarker evidence (highest weight)"""
+    def can_score(self, evidence: Evidence) -> bool:
+        return "FDA" in evidence.description or evidence.source_kb == "FDA"
+
+class EvidenceScoringManager:
+    """Coordinates all scoring strategies using Strategy Pattern"""
+    def __init__(self, weights: EvidenceWeights):
+        self.scorers = [FDAApprovedScorer(weights), GuidelineEvidenceScorer(weights), ...]
+```
+
+**Key Benefits:**
+- **Isolated Testing**: Each scorer can be unit tested independently
+- **Clean Separation**: Scoring logic decoupled from tiering engine
+- **Easy Extension**: New evidence types add new scorer classes
+- **Dependency Injection**: Mock scorers for comprehensive testing
+
 ### 1. AMP/ACMG Guidelines Implementation
 
 Following **InterVar's** evidence-based approach with **CancerVar's** cancer-specific adaptations:

@@ -5,7 +5,7 @@ Defines comprehensive validation schemas for CLI and API inputs,
 extending the schemas defined in SCHEMA_VALIDATION.md
 """
 
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, validator
 from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
 from datetime import datetime
@@ -72,14 +72,16 @@ class CLIInputSchema(BaseSchema):
     quiet: bool = Field(False, description="Quiet mode")
     log_file: Optional[Path] = Field(None, description="Log file path")
     
-    @validator('case_uid', 'patient_uid')
+    @field_validator('case_uid', 'patient_uid')
+    @classmethod
     def validate_ids(cls, v):
         """Validate ID format"""
         if v and not re.match(r'^[A-Za-z0-9_-]+$', v):
             raise ValueError('IDs must contain only alphanumeric characters, hyphens, and underscores')
         return v
     
-    @validator('input', 'tumor_vcf', 'normal_vcf')
+    @field_validator('input', 'tumor_vcf', 'normal_vcf')
+    @classmethod
     def validate_vcf_file(cls, v):
         """Validate VCF file path and extension"""
         if v is None:
@@ -94,11 +96,16 @@ class CLIInputSchema(BaseSchema):
         
         return v
     
-    @validator('analysis_type', always=True)
-    def auto_detect_analysis_type(cls, v, values):
+    @model_validator(mode='before')
+    @classmethod
+    def auto_detect_analysis_type(cls, values):
         """Auto-detect analysis type if not explicitly set"""
-        if v is not None:
-            return v
+        if not isinstance(values, dict):
+            return values
+            
+        analysis_type = values.get('analysis_type')
+        if analysis_type is not None:
+            return values
         
         # Check input patterns to auto-detect
         input_file = values.get('input')
@@ -107,26 +114,30 @@ class CLIInputSchema(BaseSchema):
         
         # Legacy single input - assume tumor-only
         if input_file and not tumor_vcf and not normal_vcf:
-            return AnalysisType.TUMOR_ONLY
+            values['analysis_type'] = AnalysisType.TUMOR_ONLY
         
         # Dual input with normal - tumor-normal
-        if tumor_vcf and normal_vcf:
-            return AnalysisType.TUMOR_NORMAL
+        elif tumor_vcf and normal_vcf:
+            values['analysis_type'] = AnalysisType.TUMOR_NORMAL
         
         # Only tumor VCF specified - tumor-only
-        if tumor_vcf and not normal_vcf:
-            return AnalysisType.TUMOR_ONLY
+        elif tumor_vcf and not normal_vcf:
+            values['analysis_type'] = AnalysisType.TUMOR_ONLY
         
         # Default to tumor-only if unclear
-        return AnalysisType.TUMOR_ONLY
+        else:
+            values['analysis_type'] = AnalysisType.TUMOR_ONLY
+            
+        return values
     
-    @validator('normal_vcf')
-    def validate_input_consistency(cls, v, values):
+    @model_validator(mode='after')
+    @classmethod
+    def validate_input_consistency(cls, values):
         """Validate input file consistency"""
-        input_file = values.get('input')
-        tumor_vcf = values.get('tumor_vcf')
-        normal_vcf = v  # Current field being validated
-        analysis_type = values.get('analysis_type')
+        input_file = values.input
+        tumor_vcf = values.tumor_vcf
+        normal_vcf = values.normal_vcf
+        analysis_type = values.analysis_type
         
         # Cannot mix legacy and new input styles
         if input_file and (tumor_vcf or normal_vcf):
@@ -140,9 +151,10 @@ class CLIInputSchema(BaseSchema):
         if analysis_type == AnalysisType.TUMOR_NORMAL and not normal_vcf:
             raise ValueError('TUMOR_NORMAL analysis requires --normal-vcf')
         
-        return v
+        return values
     
-    @validator('cancer_type')
+    @field_validator('cancer_type')
+    @classmethod
     def validate_cancer_type(cls, v):
         """Validate cancer type"""
         valid_types = {
@@ -155,14 +167,16 @@ class CLIInputSchema(BaseSchema):
             raise ValueError(f'Cancer type must be one of: {", ".join(valid_types)}')
         return v
     
-    @validator('genome')
+    @field_validator('genome')
+    @classmethod
     def validate_genome_build(cls, v):
         """Validate genome build"""
         if v not in ['GRCh37', 'GRCh38']:
             raise ValueError('Genome build must be GRCh37 or GRCh38')
         return v
     
-    @validator('guidelines')
+    @field_validator('guidelines')
+    @classmethod
     def validate_guidelines(cls, v):
         """Validate clinical guidelines"""
         valid_guidelines = {'AMP_ACMG', 'CGC_VICC', 'ONCOKB'}
@@ -170,7 +184,8 @@ class CLIInputSchema(BaseSchema):
             raise ValueError(f'Guidelines must be from: {", ".join(valid_guidelines)}')
         return v
     
-    @validator('tissue_type')
+    @field_validator('tissue_type')
+    @classmethod
     def validate_tissue_type(cls, v):
         """Validate tissue type"""
         valid_types = {'primary_tumor', 'metastatic', 'recurrent', 'normal', 'unknown'}
@@ -178,7 +193,8 @@ class CLIInputSchema(BaseSchema):
             raise ValueError(f'Tissue type must be one of: {", ".join(valid_types)}')
         return v
     
-    @validator('output_format')
+    @field_validator('output_format')
+    @classmethod
     def validate_output_format(cls, v):
         """Validate output format"""
         valid_formats = {'json', 'tsv', 'html', 'all'}
@@ -201,7 +217,8 @@ class VCFVariantSchema(BaseSchema):
     depth: Optional[int] = Field(None, ge=0, description="Read depth")
     allele_frequency: Optional[float] = Field(None, ge=0, le=1, description="Allele frequency")
     
-    @validator('chromosome')
+    @field_validator('chromosome')
+    @classmethod
     def validate_chromosome(cls, v):
         """Validate chromosome notation"""
         # Remove 'chr' prefix if present
@@ -215,7 +232,8 @@ class VCFVariantSchema(BaseSchema):
         
         return v
     
-    @validator('reference', 'alternate')
+    @field_validator('reference', 'alternate')
+    @classmethod
     def validate_alleles(cls, v):
         """Validate allele sequences"""
         if not re.match(r'^[ATCGN-]+$', v.upper()):
@@ -286,7 +304,8 @@ class APIVariantInput(BaseSchema):
     variant_allele_frequency: Optional[float] = Field(None, ge=0, le=1, description="VAF")
     quality_score: Optional[float] = Field(None, ge=0, description="Quality score")
     
-    @validator('chromosome')
+    @field_validator('chromosome')
+    @classmethod
     def normalize_chromosome(cls, v):
         """Normalize chromosome notation"""
         if v.startswith('chr'):
@@ -319,17 +338,20 @@ class APIAnalysisRequest(BaseSchema):
     min_vaf: float = Field(0.05, ge=0.0, le=1.0)
     skip_qc: bool = Field(False)
     
-    @validator('case_uid', 'patient_uid')
+    @field_validator('case_uid', 'patient_uid')
+    @classmethod
     def validate_api_ids(cls, v):
         """Validate API ID format"""
         if not re.match(r'^[A-Za-z0-9_-]+$', v):
             raise ValueError('IDs must contain only alphanumeric characters, hyphens, and underscores')
         return v
     
+    @model_validator(mode='after')
+    @classmethod
     def validate_input_exclusivity(cls, values):
         """Ensure mutually exclusive input types"""
-        vcf_file = values.get('vcf_file')
-        single_variant = values.get('single_variant')
+        vcf_file = values.vcf_file
+        single_variant = values.single_variant
         
         if not (vcf_file or single_variant):
             raise ValueError('Either vcf_file or single_variant must be provided')

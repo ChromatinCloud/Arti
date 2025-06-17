@@ -1,5 +1,11 @@
 # TODO – Next High-Value Tasks
 
+## 🎯 Recently Completed (2025-06-17)
+- ✅ **Evidence Scoring Refactoring**: Strategy Pattern implementation with 6 specialized scorers
+- ✅ **Dependency Injection**: Clean DI container with Protocol interfaces for better testing
+- ✅ **Unit Test Suite**: 16 comprehensive tests for evidence scoring strategies
+- ✅ **Documentation Updates**: Updated roadmap, testing strategy, and rules implementation docs
+
 ## 🎯 Immediate Priorities
 
 ### 1. Fix Test Suite (Unblocks Everything)

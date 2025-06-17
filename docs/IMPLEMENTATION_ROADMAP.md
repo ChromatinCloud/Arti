@@ -61,6 +61,8 @@ This roadmap outlines the complete implementation plan for the Annotation Engine
 - **VEP Runner** (820 lines) - Executes VEP and parses JSON
 - **Evidence Aggregator** (1,395 lines) - KB integration and matching
 - **Tier Assignment** (976 lines) - AMP/VICC scoring implementation
+- **Evidence Scoring Strategies** (550 lines) - Modular Strategy Pattern implementation
+- **Dependency Injection** (200 lines) - Clean DI container with Protocol interfaces
 - **Performance**: 0.20 seconds for 4-variant VCF
 
 ### ✅ Additional Completed Features
@@ -94,6 +96,16 @@ This roadmap outlines the complete implementation plan for the Annotation Engine
   - Multiple scenario evaluation (het, LOH, subclonal)
   - Quality-based variant filtering
   - Confidence scoring for estimates
+
+#### Evidence Scoring System & Dependency Injection Refactoring (2025-06-17)
+- **Strategy Pattern Implementation**: Decoupled evidence scoring from tiering logic
+- **6 Specialized Scorers**: FDA, Guidelines, Clinical Studies, Expert Consensus, Case Reports, Preclinical
+- **Dependency Injection Container**: Clean DI patterns eliminate complex manual mocking
+- **Protocol-Based Interfaces**: Type-safe dependency contracts for all major components
+- **Factory Pattern**: `TieringEngineFactory` for production and test configurations
+- **Improved Testability**: 16 comprehensive unit tests for individual scorers + mockable dependencies
+- **Maintainability**: Clear separation of concerns and single responsibility classes
+- **Full Backward Compatibility**: No changes to external API or scoring behavior
 
 #### Enhanced Tier System with Sub-classifications
 - **AMP/ASCO/CAP 2017 Tiers**:
