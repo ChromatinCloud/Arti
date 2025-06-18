@@ -196,6 +196,52 @@ class AnnotationEngineCLI:
             help='Validate inputs without running annotation'
         )
         
+        # Enhanced text generation options
+        parser.add_argument(
+            '--enable-enhanced-text',
+            action='store_true',
+            default=True,
+            help='Enable enhanced narrative generation with citations (default: True)'
+        )
+        parser.add_argument(
+            '--disable-enhanced-text',
+            action='store_true',
+            help='Disable enhanced narrative generation (use basic templates)'
+        )
+        parser.add_argument(
+            '--text-confidence-threshold',
+            type=float,
+            default=0.7,
+            help='Minimum confidence threshold for generated text (default: 0.7)'
+        )
+        parser.add_argument(
+            '--citation-style',
+            type=str,
+            choices=['academic', 'clinical', 'brief'],
+            default='clinical',
+            help='Citation style for references (default: clinical)'
+        )
+        parser.add_argument(
+            '--text-style',
+            type=str,
+            choices=['clinical', 'research', 'brief'],
+            default='clinical',
+            help='Text style for generated narratives (default: clinical)'
+        )
+        parser.add_argument(
+            '--include-citations',
+            action='store_true',
+            default=True,
+            help='Include citations in generated text (default: True)'
+        )
+        parser.add_argument(
+            '--pertinent-negatives-scope',
+            type=str,
+            choices=['genes', 'comprehensive', 'cancer-specific'],
+            default='comprehensive',
+            help='Scope of pertinent negative findings (default: comprehensive)'
+        )
+        
         # Logging and debugging
         parser.add_argument(
             '--verbose', '-v',
@@ -309,7 +355,7 @@ class AnnotationEngineCLI:
             "warnings": validation_result.warnings
         }
     
-    def create_analysis_request(self, validated_input: CLIInputSchema, vcf_validation: Dict[str, Any]) -> AnalysisRequest:
+    def create_analysis_request(self, validated_input: CLIInputSchema, vcf_validation: Dict[str, Any], enhanced_text_options: Optional[Dict[str, Any]] = None) -> AnalysisRequest:
         """
         Create analysis request from validated inputs
         
@@ -356,7 +402,8 @@ class AnnotationEngineCLI:
             tumor_purity=validated_input.tumor_purity,
             vcf_summary=vcf_validation,
             config_file=str(validated_input.config) if validated_input.config else None,
-            kb_bundle=str(validated_input.kb_bundle) if validated_input.kb_bundle else None
+            kb_bundle=str(validated_input.kb_bundle) if validated_input.kb_bundle else None,
+            enhanced_text_options=enhanced_text_options
         )
     
     def print_validation_summary(self, analysis_request: AnalysisRequest, quiet: bool = False) -> None:
@@ -458,6 +505,9 @@ class AnnotationEngineCLI:
                 print("❌ --cancer-type is required")
                 return 1
             
+            # Process enhanced text options
+            use_enhanced_text = args.enable_enhanced_text and not args.disable_enhanced_text
+            
             # Validate CLI arguments
             validated_input = self.validate_arguments(args)
             
@@ -466,8 +516,19 @@ class AnnotationEngineCLI:
             if validated_input.input:
                 vcf_validation = self.validate_vcf_file(validated_input.input)
             
-            # Create analysis request
-            analysis_request = self.create_analysis_request(validated_input, vcf_validation)
+            # Create analysis request with enhanced text options
+            analysis_request = self.create_analysis_request(
+                validated_input, 
+                vcf_validation, 
+                enhanced_text_options={
+                    'use_enhanced_text': use_enhanced_text,
+                    'text_confidence_threshold': args.text_confidence_threshold,
+                    'citation_style': args.citation_style,
+                    'text_style': args.text_style,
+                    'include_citations': args.include_citations,
+                    'pertinent_negatives_scope': args.pertinent_negatives_scope
+                }
+            )
             
             # Print validation summary
             self.print_validation_summary(analysis_request, args.quiet)
@@ -945,11 +1006,41 @@ class AnnotationEngineCLI:
         args.quiet = True
         args.verbose = 1
         
+        # Set default enhanced text options if not present
+        if not hasattr(args, 'enable_enhanced_text'):
+            args.enable_enhanced_text = True
+        if not hasattr(args, 'disable_enhanced_text'):
+            args.disable_enhanced_text = False
+        if not hasattr(args, 'text_confidence_threshold'):
+            args.text_confidence_threshold = 0.7
+        if not hasattr(args, 'citation_style'):
+            args.citation_style = 'clinical'
+        if not hasattr(args, 'text_style'):
+            args.text_style = 'clinical'
+        if not hasattr(args, 'include_citations'):
+            args.include_citations = True
+        if not hasattr(args, 'pertinent_negatives_scope'):
+            args.pertinent_negatives_scope = 'comprehensive'
+        
         try:
+            # Process enhanced text options
+            use_enhanced_text = args.enable_enhanced_text and not args.disable_enhanced_text
+            
             # Run the normal pipeline
             validated_input = self.validate_arguments(args)
             vcf_validation = self.validate_vcf_file(validated_input.input)
-            analysis_request = self.create_analysis_request(validated_input, vcf_validation)
+            analysis_request = self.create_analysis_request(
+                validated_input, 
+                vcf_validation,
+                enhanced_text_options={
+                    'use_enhanced_text': use_enhanced_text,
+                    'text_confidence_threshold': args.text_confidence_threshold,
+                    'citation_style': args.citation_style,
+                    'text_style': args.text_style,
+                    'include_citations': args.include_citations,
+                    'pertinent_negatives_scope': args.pertinent_negatives_scope
+                }
+            )
             
             # Execute annotation pipeline
             results = self._execute_annotation_pipeline(analysis_request)

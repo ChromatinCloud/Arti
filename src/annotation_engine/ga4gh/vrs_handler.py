@@ -16,14 +16,18 @@ import logging
 from pathlib import Path
 
 try:
-    from ga4gh.vrs import models, normalize, identify
+    from ga4gh.vrs import models, normalize
     from ga4gh.core import ga4gh_identify, sha512t24u
     from biocommons.seqrepo import SeqRepo
+    VRS_AVAILABLE = True
 except ImportError:
-    raise ImportError(
-        "GA4GH VRS dependencies not installed. "
-        "Run: pip install 'ga4gh.vrs[extras]' biocommons.seqrepo"
-    )
+    # Make VRS optional for basic functionality
+    VRS_AVAILABLE = False
+    models = None
+    normalize = None
+    ga4gh_identify = None
+    sha512t24u = None
+    SeqRepo = None
 
 from ..models import VariantAnnotation, StructuralVariant
 
@@ -76,7 +80,12 @@ class VRSHandler:
     
     def __init__(self, config: Optional[VRSConfig] = None):
         self.config = config or VRSConfig()
-        self._setup_sequence_repo()
+        self.vrs_available = VRS_AVAILABLE
+        if self.vrs_available:
+            self._setup_sequence_repo()
+        else:
+            logger.warning("GA4GH VRS not available - VRS functionality will be limited")
+            self.seqrepo = None
         
     def _setup_sequence_repo(self):
         """Setup sequence repository for normalization"""

@@ -15,15 +15,18 @@ fastapi = "^0.104"
 uvicorn = "^0.24"
 pyyaml = "^6.0"
 httpx = "^0.25"
-pysam = "^0.22"
+pysam = "^0.23"
 vcfpy = "^0.13"
 sqlalchemy = "^2.0"
 pybigwig = "^0.3.24"
 tqdm = "^4.66"
+ga4gh-vrs = "^2.1.2"
+biocommons-seqrepo = "^0.6.11"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2"
 ruff   = "^0.4"
+psycopg2-binary = "^2.9.10"
 
 [tool.poetry.scripts]
 annotation-engine = "annotation_engine.cli:main"

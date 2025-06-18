@@ -10,12 +10,35 @@ Implements Global Alliance for Genomics and Health standards:
 This module enhances the annotation engine with international interoperability.
 """
 
-from .vrs_handler import VRSHandler, VRSNormalizer
-from .phenopacket_builder import PhenopacketBuilder, CancerPhenopacketCreator
-from .variant_annotation import GA4GHVariantAnnotation, AnnotationExporter
-from .vicc_integration import VICCMetaKnowledgebaseClient
-from .service_info import ServiceInfoProvider
-from .clinical_context import ClinicalContextExtractor
+try:
+    from .vrs_handler import VRSHandler, VRSNormalizer
+    from .phenopacket_builder import PhenopacketBuilder, CancerPhenopacketCreator
+    from .variant_annotation import GA4GHVariantAnnotation, AnnotationExporter
+    from .vicc_integration import VICCMetaKnowledgebaseClient
+    from .service_info import ServiceInfoProvider
+    from .clinical_context import ClinicalContextExtractor
+    GA4GH_AVAILABLE = True
+except ImportError:
+    # GA4GH dependencies not available - provide minimal fallbacks
+    GA4GH_AVAILABLE = False
+    
+    class VRSHandler:
+        def __init__(self, *args, **kwargs):
+            self.vrs_available = False
+        def get_vrs_id(self, *args, **kwargs):
+            return None
+            
+    class PhenopacketBuilder:
+        def __init__(self, *args, **kwargs):
+            pass
+            
+    class AnnotationExporter:
+        def __init__(self, *args, **kwargs):
+            pass
+            
+    class ClinicalContextExtractor:
+        def __init__(self, *args, **kwargs):
+            pass
 
 __all__ = [
     'VRSHandler',

@@ -353,9 +353,17 @@ class TierResult(BaseModel):
     dsc_scoring: Optional[DynamicSomaticConfidence] = Field(None, description="Dynamic Somatic Confidence scoring")
     
     # Tier assignments
-    amp_scoring: AMPScoring
-    vicc_scoring: VICCScoring
-    oncokb_scoring: OncoKBScoring
+    amp_scoring: Optional[AMPScoring] = Field(default_factory=lambda: AMPScoring(
+        therapeutic_tier=None,
+        diagnostic_tier=None,
+        prognostic_tier=None,
+        cancer_type_specific=False,
+        related_cancer_types=[],
+        overall_confidence=0.0,
+        evidence_completeness=0.0
+    ))
+    vicc_scoring: Optional[VICCScoring] = Field(default_factory=VICCScoring)
+    oncokb_scoring: Optional[OncoKBScoring] = Field(default_factory=OncoKBScoring)
     
     # Supporting evidence
     evidence: List[Evidence] = Field(default_factory=list)

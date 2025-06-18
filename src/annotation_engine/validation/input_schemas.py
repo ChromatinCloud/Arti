@@ -280,6 +280,9 @@ class AnalysisRequest(BaseSchema):
     config_file: Optional[str] = Field(None, description="Configuration file path")
     kb_bundle: Optional[str] = Field(None, description="Knowledge base bundle path")
     
+    # Enhanced text generation options
+    enhanced_text_options: Optional[Dict[str, Any]] = Field(None, description="Enhanced text generation configuration")
+    
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Request creation time")
     analysis_id: Optional[str] = Field(None, description="Analysis identifier")

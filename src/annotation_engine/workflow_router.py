@@ -1,18 +1,30 @@
 """
-Workflow Router for Variant Annotation Pipeline
+Workflow Router for Variant Annotation Pipeline (Person B Implementation)
 
-Routes variants through appropriate analysis pathways based on sample type
-(tumor-only vs tumor-normal) and configures knowledge base priorities,
-evidence weights, and VAF thresholds accordingly.
+Routes validated input from Person A through appropriate analysis pathways based on
+analysis type (tumor-only vs tumor-normal) and cancer type. Implements the
+WorkflowRouterProtocol interface for Person A ↔ Person B integration.
 """
 
 import logging
+import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
 from .models import AnalysisType
+from .interfaces.workflow_interfaces import (
+    WorkflowRouterProtocol,
+    WorkflowContext,
+    WorkflowRoute,
+    WorkflowConfiguration,
+    AnalysisType as InterfaceAnalysisType,
+    EvidenceSource as InterfaceEvidenceSource,
+    KnowledgeBasePriority
+)
+from .interfaces.validation_interfaces import ValidatedInput
 
 logger = logging.getLogger(__name__)
 
@@ -73,30 +85,257 @@ class PathwayConfig:
     prioritize_hotspots: bool
 
 
-class WorkflowRouter:
-    """Routes variants through appropriate analysis pathways"""
+class WorkflowRouter(WorkflowRouterProtocol):
+    """
+    Routes variants through appropriate analysis pathways
+    
+    Implements WorkflowRouterProtocol for Person A ↔ Person B integration
+    """
     
     def __init__(self, 
-                 analysis_type: AnalysisType,
+                 analysis_type: Optional[AnalysisType] = None,
                  tumor_type: Optional[str] = None,
                  config_path: Optional[Path] = None):
         """
         Initialize workflow router
         
         Args:
-            analysis_type: TUMOR_ONLY or TUMOR_NORMAL
-            tumor_type: OncoTree code for tumor type
+            analysis_type: TUMOR_ONLY or TUMOR_NORMAL (optional for protocol interface)
+            tumor_type: OncoTree code for tumor type  
             config_path: Optional path to custom config
         """
         self.analysis_type = analysis_type
         self.tumor_type = tumor_type
         self.config_path = config_path
         
-        # Load pathway configuration
+        # Load pathway configuration if analysis type provided
+        if analysis_type:
+            self.pathway = self._load_pathway_config()
+            logger.info(f"Initialized workflow router for {self.pathway.name} pathway")
+            logger.debug(f"KB priorities: {[src.value for src in self.pathway.kb_priorities[:5]]}...")
+        else:
+            self.pathway = None
+            logger.info("Initialized workflow router for dynamic routing")
+    
+    # Protocol interface methods (Person A ↔ Person B integration)
+    
+    def route(self, validated_input: ValidatedInput) -> WorkflowContext:
+        """
+        Main routing method that creates WorkflowContext
+        
+        This is the primary interface method that downstream components will use
+        """
+        try:
+            logger.info(f"Routing workflow for case {validated_input.patient.case_id}")
+            
+            # 1. Determine analysis type
+            analysis_type = self.determine_analysis_type(validated_input)
+            
+            # 2. Get workflow configuration
+            config = self.get_workflow_configuration(
+                analysis_type, 
+                validated_input.patient.cancer_type
+            )
+            
+            # 3. Build processing steps
+            processing_steps = self._build_processing_steps(validated_input)
+            
+            # 4. Create workflow route
+            route = WorkflowRoute(
+                analysis_type=analysis_type,
+                workflow_name=self._get_workflow_name(analysis_type, validated_input),
+                configuration=config,
+                processing_steps=processing_steps,
+                filter_config=self._convert_to_filter_config(analysis_type),
+                aggregator_config=self._convert_to_aggregator_config(),
+                tiering_config=self._convert_to_tiering_config(),
+                output_formats=validated_input.requested_outputs or ["json"]
+            )
+            
+            # 5. Create workflow context
+            context = WorkflowContext(
+                validated_input=validated_input,
+                route=route,
+                execution_id=str(uuid.uuid4()),
+                start_time=datetime.utcnow().isoformat()
+            )
+            
+            logger.info(f"Workflow routed: {route.workflow_name} (execution_id: {context.execution_id})")
+            return context
+            
+        except Exception as e:
+            logger.error(f"Workflow routing failed: {e}")
+            raise ValueError(f"Failed to route workflow: {str(e)}")
+    
+    def determine_analysis_type(self, validated_input: ValidatedInput) -> InterfaceAnalysisType:
+        """Determine analysis type from validated input"""
+        if validated_input.analysis_type == "tumor_normal":
+            return InterfaceAnalysisType.TUMOR_NORMAL
+        else:
+            return InterfaceAnalysisType.TUMOR_ONLY
+    
+    def get_workflow_configuration(self, 
+                                 analysis_type: InterfaceAnalysisType,
+                                 cancer_type: str) -> WorkflowConfiguration:
+        """Get workflow configuration for analysis type and cancer"""
+        
+        # Convert to internal analysis type and set up router
+        internal_analysis_type = (AnalysisType.TUMOR_NORMAL if 
+                                analysis_type == InterfaceAnalysisType.TUMOR_NORMAL 
+                                else AnalysisType.TUMOR_ONLY)
+        
+        # Update internal state for pathway loading
+        old_analysis_type = self.analysis_type
+        old_tumor_type = self.tumor_type
+        
+        self.analysis_type = internal_analysis_type
+        self.tumor_type = cancer_type
         self.pathway = self._load_pathway_config()
         
-        logger.info(f"Initialized workflow router for {self.pathway.name} pathway")
-        logger.debug(f"KB priorities: {[src.value for src in self.pathway.kb_priorities[:5]]}...")
+        # Convert internal pathway config to interface config
+        kb_priorities = self._convert_kb_priorities(self.pathway.kb_priorities)
+        
+        config = WorkflowConfiguration(
+            kb_priorities=kb_priorities,
+            min_tumor_vaf=self.pathway.vaf_thresholds.get("min_tumor_vaf", 0.05),
+            min_normal_vaf=self.pathway.vaf_thresholds.get("max_normal_vaf", 0.02),
+            min_coverage=self.pathway.min_coverage,
+            min_alt_reads=4,
+            population_af_threshold=self.pathway.vaf_thresholds.get("max_population_af", 0.01),
+            require_somatic_evidence=analysis_type == InterfaceAnalysisType.TUMOR_ONLY,
+            penalize_germline_evidence=analysis_type == InterfaceAnalysisType.TUMOR_ONLY,
+            boost_hotspot_variants=self.pathway.prioritize_hotspots,
+            check_signatures=analysis_type == InterfaceAnalysisType.TUMOR_NORMAL,
+            infer_clonality=analysis_type == InterfaceAnalysisType.TUMOR_NORMAL
+        )
+        
+        # Restore original state
+        self.analysis_type = old_analysis_type
+        self.tumor_type = old_tumor_type
+        
+        return config
+    
+    def get_available_workflows(self) -> List[str]:
+        """Get list of available workflow names"""
+        return [
+            "tumor_only_standard",
+            "tumor_only_with_phenopacket",
+            "tumor_only_with_va", 
+            "tumor_normal_standard",
+            "tumor_normal_with_phenopacket",
+            "tumor_normal_with_va"
+        ]
+    
+    def validate_workflow_config(self, config: WorkflowConfiguration) -> List[str]:
+        """Validate a workflow configuration, return any issues"""
+        issues = []
+        
+        if config.min_tumor_vaf <= 0 or config.min_tumor_vaf > 1:
+            issues.append(f"Invalid tumor VAF threshold: {config.min_tumor_vaf}")
+        
+        if config.min_coverage < 10:
+            issues.append(f"Minimum coverage too low: {config.min_coverage}")
+        
+        if not config.kb_priorities:
+            issues.append("No knowledge base priorities configured")
+        
+        return issues
+    
+    # Helper methods for protocol interface
+    
+    def _convert_kb_priorities(self, internal_priorities: List[EvidenceSource]) -> List[KnowledgeBasePriority]:
+        """Convert internal EvidenceSource priorities to interface KnowledgeBasePriority"""
+        kb_priorities = []
+        
+        for priority in internal_priorities:
+            # Map internal sources to interface sources
+            interface_source = self._map_evidence_source(priority)
+            if interface_source:
+                weight = self.get_evidence_weight(priority)
+                kb_priorities.append(KnowledgeBasePriority(
+                    source=interface_source,
+                    weight=weight,
+                    enabled=True
+                ))
+        
+        return kb_priorities
+    
+    def _map_evidence_source(self, internal_source: EvidenceSource) -> Optional[InterfaceEvidenceSource]:
+        """Map internal EvidenceSource to interface EvidenceSource"""
+        mapping = {
+            EvidenceSource.ONCOKB: InterfaceEvidenceSource.ONCOKB,
+            EvidenceSource.CIVIC: InterfaceEvidenceSource.CIVIC,
+            EvidenceSource.COSMIC_HOTSPOT: InterfaceEvidenceSource.COSMIC,
+            EvidenceSource.MSK_HOTSPOT: InterfaceEvidenceSource.MSK_HOTSPOTS,
+            EvidenceSource.CLINVAR: InterfaceEvidenceSource.CLINVAR,
+            EvidenceSource.GNOMAD: InterfaceEvidenceSource.GNOMAD,
+        }
+        return mapping.get(internal_source)
+    
+    def _build_processing_steps(self, validated_input: ValidatedInput) -> List[str]:
+        """Build ordered processing steps based on input"""
+        steps = ["vep"]
+        
+        if validated_input.analysis_type == "tumor_normal":
+            steps.append("somatic_calling")
+        
+        steps.extend(["evidence_aggregation", "tiering"])
+        
+        if validated_input.export_phenopacket:
+            steps.append("phenopacket_export")
+        
+        if validated_input.export_va:
+            steps.append("va_export")
+        
+        if validated_input.vrs_normalize:
+            steps.append("vrs_normalization")
+        
+        steps.append("canned_text_generation")
+        
+        return steps
+    
+    def _get_workflow_name(self, analysis_type: InterfaceAnalysisType, validated_input: ValidatedInput) -> str:
+        """Generate workflow name based on analysis type and outputs"""
+        base_name = analysis_type.value
+        
+        if validated_input.export_phenopacket:
+            return f"{base_name}_with_phenopacket"
+        elif validated_input.export_va:
+            return f"{base_name}_with_va"
+        else:
+            return f"{base_name}_standard"
+    
+    def _convert_to_filter_config(self, analysis_type: InterfaceAnalysisType) -> Dict[str, Any]:
+        """Convert pathway config to filter config"""
+        if not self.pathway:
+            return {}
+        
+        return {
+            "min_depth": self.pathway.min_coverage,
+            "min_tumor_vaf": self.pathway.vaf_thresholds.get("min_tumor_vaf", 0.05),
+            "use_population_filtering": self.pathway.use_population_filtering,
+            "use_germline_filtering": self.pathway.use_germline_filtering
+        }
+    
+    def _convert_to_aggregator_config(self) -> Dict[str, Any]:
+        """Convert pathway config to aggregator config"""
+        if not self.pathway:
+            return {}
+        
+        return {
+            "prioritize_therapeutic": self.pathway.prioritize_therapeutic,
+            "prioritize_hotspots": self.pathway.prioritize_hotspots
+        }
+    
+    def _convert_to_tiering_config(self) -> Dict[str, Any]:
+        """Convert pathway config to tiering config"""
+        return {
+            "amp_guidelines": True,
+            "vicc_guidelines": True,
+            "oncokb_levels": True
+        }
+    
+    # Original pathway methods (for backward compatibility)
     
     def _load_pathway_config(self) -> PathwayConfig:
         """Load configuration for the selected pathway"""

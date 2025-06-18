@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import re
 import logging
+import hashlib
 from collections import defaultdict, OrderedDict
 
 from .models import Evidence, CannedText, CannedTextType
@@ -50,11 +51,17 @@ class EnhancedNarrativeGenerator:
     and intelligent evidence synthesis
     """
     
-    def __init__(self):
+    def __init__(self, enable_caching: bool = True):
         self.source_catalog = self._initialize_source_catalog()
         self.narrative_patterns = self._initialize_narrative_patterns()
         self.citation_registry = {}  # Track all citations used
         self.source_counter = 0
+        self.enable_caching = enable_caching
+        
+        # Performance optimization caches
+        self._evidence_cluster_cache = {}  # Cache clustered evidence by hash
+        self._template_cache = {}  # Cache compiled templates
+        self._narrative_cache = {}  # Cache generated narratives
         
     def _initialize_source_catalog(self) -> Dict[str, SourceMetadata]:
         """Comprehensive catalog of all evidence sources with metadata"""
@@ -316,13 +323,24 @@ class EnhancedNarrativeGenerator:
         Generate enhanced narrative with reliable citations and source ordering
         
         Process:
-        1. Clean and validate evidence
-        2. Cluster evidence by conclusion/theme
-        3. Order sources by reliability
-        4. Generate narrative with inline citations
-        5. Add comprehensive reference list
-        6. Validate output quality
+        1. Check cache for existing narrative
+        2. Clean and validate evidence
+        3. Cluster evidence by conclusion/theme
+        4. Order sources by reliability
+        5. Generate narrative with inline citations
+        6. Add comprehensive reference list
+        7. Cache and validate output quality
         """
+        
+        # Step 0: Check cache for existing narrative
+        evidence_hash = self._hash_evidence_list(evidence_list)
+        context_str = f"{text_type.value}:{context.get('gene_symbol', '')}:{context.get('cancer_type', '')}"
+        cache_key = f"{evidence_hash}:{hashlib.md5(context_str.encode()).hexdigest()[:8]}"
+        
+        cached_narrative = self._get_cached_narrative(cache_key)
+        if cached_narrative:
+            logger.debug(f"Using cached narrative for {text_type}")
+            return cached_narrative
         
         # Reset citation tracking for this narrative
         self.citation_registry = {}
@@ -367,13 +385,19 @@ class EnhancedNarrativeGenerator:
             for e in cluster.evidence_pieces
         ]
         
-        return CannedText(
+        # Create final narrative
+        narrative = CannedText(
             text_type=text_type,
             content=final_content,
             confidence=confidence,
             evidence_support=list(set(evidence_support)),
             triggered_by=[f"Enhanced narrative from {len(processed_evidence)} sources"]
         )
+        
+        # Cache the generated narrative for future use
+        self._cache_narrative(cache_key, narrative)
+        
+        return narrative
     
     def _process_and_validate_evidence(self, evidence_list: List[Evidence]) -> List[Evidence]:
         """Clean and validate evidence for narrative generation"""
@@ -1129,3 +1153,55 @@ class EnhancedNarrativeGenerator:
             evidence_support=[],
             triggered_by=["Minimal narrative - no evidence"]
         )
+    
+    # Performance optimization methods
+    
+    def _hash_evidence_list(self, evidence_list: List[Evidence]) -> str:
+        """Create hash of evidence list for caching"""
+        if not evidence_list:
+            return "empty"
+        
+        # Create stable hash based on evidence content
+        evidence_strings = []
+        for evidence in evidence_list:
+            evidence_str = f"{evidence.source_kb}:{evidence.evidence_type}:{evidence.description[:100]}"
+            evidence_strings.append(evidence_str)
+        
+        # Sort for consistent hashing
+        evidence_strings.sort()
+        import hashlib
+        return hashlib.md5("||".join(evidence_strings).encode()).hexdigest()[:16]
+    
+    def _get_cached_narrative(self, cache_key: str) -> Optional[CannedText]:
+        """Get cached narrative if available"""
+        if not self.enable_caching:
+            return None
+        return self._narrative_cache.get(cache_key)
+    
+    def _cache_narrative(self, cache_key: str, narrative: CannedText) -> None:
+        """Cache generated narrative"""
+        if not self.enable_caching:
+            return
+        
+        # Limit cache size to prevent memory issues
+        if len(self._narrative_cache) > 1000:
+            # Remove oldest entries (simple LRU)
+            keys_to_remove = list(self._narrative_cache.keys())[:100]
+            for key in keys_to_remove:
+                del self._narrative_cache[key]
+        
+        self._narrative_cache[cache_key] = narrative
+    
+    def clear_caches(self) -> None:
+        """Clear all performance caches"""
+        self._evidence_cluster_cache.clear()
+        self._template_cache.clear()
+        self._narrative_cache.clear()
+    
+    def get_cache_stats(self) -> Dict[str, int]:
+        """Get cache usage statistics"""
+        return {
+            "evidence_clusters_cached": len(self._evidence_cluster_cache),
+            "templates_cached": len(self._template_cache),
+            "narratives_cached": len(self._narrative_cache)
+        }

@@ -403,7 +403,9 @@ class TieringEngine:
         if text_generator is not None:
             self.text_generator = text_generator
         else:
-            self.text_generator = CannedTextGenerator()
+            # Use comprehensive generator with enhanced narratives by default
+            from .canned_text_integration import ComprehensiveCannedTextGenerator
+            self.text_generator = ComprehensiveCannedTextGenerator(use_enhanced_narratives=True)
         
         if scoring_manager is not None:
             self.scoring_manager = scoring_manager
@@ -470,6 +472,7 @@ class TieringEngine:
         Returns:
             Complete tier assignment result with context-specific tiers
         """
+        logger.info(f"assign_tier called for {variant_annotation.gene_symbol} with cancer_type={cancer_type}")
         
         # Step 0: Apply workflow-specific variant filtering if router available
         if self.workflow_router and hasattr(variant_annotation, 'tumor_vaf'):
@@ -538,13 +541,36 @@ class TieringEngine:
             dsc_scoring = self.evidence_aggregator.calculate_dsc_score(variant_annotation, evidence_list, tumor_purity)
         
         # Step 3: Calculate VICC/CGC 2022 oncogenicity scoring (unchanged)
-        vicc_scoring = self.evidence_aggregator.calculate_vicc_score(evidence_list)
+        try:
+            vicc_scoring = self.evidence_aggregator.calculate_vicc_score(evidence_list)
+            logger.info(f"VICC scoring result: {type(vicc_scoring)} - {vicc_scoring}")
+        except Exception as e:
+            logger.error(f"Error calculating VICC score: {e}")
+            vicc_scoring = VICCScoring()
         
         # Step 4: Calculate OncoKB scoring (unchanged)
-        oncokb_scoring = self.evidence_aggregator.calculate_oncokb_score(evidence_list, variant_annotation.oncokb_evidence)
+        try:
+            oncokb_scoring = self.evidence_aggregator.calculate_oncokb_score(evidence_list, variant_annotation.oncokb_evidence)
+            logger.info(f"OncoKB scoring result: {type(oncokb_scoring)} - {oncokb_scoring}")
+        except Exception as e:
+            logger.error(f"Error calculating OncoKB score: {e}")
+            oncokb_scoring = OncoKBScoring()
         
         # Step 5: Calculate context-specific AMP tier assignments with DSC modulation
-        amp_scoring = self._calculate_comprehensive_amp_scoring(evidence_list, cancer_type, variant_annotation, analysis_type, dsc_scoring)
+        try:
+            amp_scoring = self._calculate_comprehensive_amp_scoring(evidence_list, cancer_type, variant_annotation, analysis_type, dsc_scoring)
+            logger.info(f"AMP scoring result: {type(amp_scoring)} - {amp_scoring}")
+        except Exception as e:
+            logger.error(f"Error calculating AMP score: {e}")
+            amp_scoring = AMPScoring(
+                therapeutic_tier=None,
+                diagnostic_tier=None,
+                prognostic_tier=None,
+                cancer_type_specific=False,
+                related_cancer_types=[],
+                overall_confidence=0.0,
+                evidence_completeness=0.0
+            )
         
         # Step 6: Apply DSC-based tier assignments for tumor-only (replaces old tier capping)
         if analysis_type == AnalysisType.TUMOR_ONLY and dsc_scoring:
@@ -562,7 +588,29 @@ class TieringEngine:
         if self.config.enable_canned_text:
             canned_texts = self._generate_all_canned_texts(variant_annotation, evidence_list, amp_scoring, vicc_scoring, oncokb_scoring, cancer_type, analysis_type)
         
-        # Step 9: Create tier result
+        # Step 9: Final safety check to ensure no scoring objects are None
+        if amp_scoring is None:
+            logger.error("AMP scoring is None, creating default")
+            amp_scoring = AMPScoring(
+                therapeutic_tier=None,
+                diagnostic_tier=None,
+                prognostic_tier=None,
+                cancer_type_specific=False,
+                related_cancer_types=[],
+                overall_confidence=0.0,
+                evidence_completeness=0.0
+            )
+        
+        if vicc_scoring is None:
+            logger.error("VICC scoring is None, creating default")
+            vicc_scoring = VICCScoring()
+        
+        if oncokb_scoring is None:
+            logger.error("OncoKB scoring is None, creating default")
+            oncokb_scoring = OncoKBScoring()
+        
+        # Step 10: Create tier result
+        logger.info(f"Creating TierResult with amp_scoring={type(amp_scoring)}, vicc_scoring={type(vicc_scoring)}, oncokb_scoring={type(oncokb_scoring)}")
         tier_result = TierResult(
             variant_id=f"{variant_annotation.chromosome}:{variant_annotation.position}:{variant_annotation.reference}>{variant_annotation.alternate}",
             gene_symbol=variant_annotation.gene_symbol,
