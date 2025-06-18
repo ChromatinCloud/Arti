@@ -1,26 +1,21 @@
 # TODO – Next High-Value Tasks
 
-## 🎯 Recently Completed (2025-06-17)
-- ✅ **Evidence Scoring Refactoring**: Strategy Pattern implementation with 6 specialized scorers
-- ✅ **Dependency Injection**: Clean DI container with Protocol interfaces for better testing
-- ✅ **Unit Test Suite**: 16 comprehensive tests for evidence scoring strategies
-- ✅ **Documentation Updates**: Updated roadmap, testing strategy, and rules implementation docs
+> Last Updated: 2025-01-18
 
-## 🎯 Immediate Priorities
+## 🎉 Recently Completed (2025-01-18)
+- ✅ **ALL TESTS PASSING**: Fixed 39 failing tests → 0 failures!
+- ✅ **CGC/VICC Implementation**: Complete oncogenicity classifier with all 17 criteria
+- ✅ **Inter-guideline Evidence**: OncoKB "Oncogenic" → CGC/VICC OS1 mapping
+- ✅ **GA4GH Integration**: Comprehensive implementation of VRS, VICC Meta-KB, Phenopackets, VA standard
+- ✅ **Clinical Context Extractor**: Cross-guideline mapping and canned text generation
+- ✅ **Dependency Injection**: Clean DI pattern throughout test infrastructure
+- ✅ **dbNSFP Integration**: Completed (per system status)
+- ✅ **Test Suite Refactoring**: All VEP-related tests now properly mocked
+- ✅ **Documentation**: Created comprehensive logs for KB mapping and GA4GH implementation
 
-### 1. Fix Test Suite (Unblocks Everything)
-- [ ] Fix 36 failing VEP-related tests
-- [ ] Update test paths for new plugin locations
-- [ ] Add tests for AlphaMissense/GERP fallback modules
-- [ ] Validate plugin_fallbacks.py integration
+## 🎯 Current Sprint Focus (Phase 2B)
 
-### 2. Complete dbNSFP Integration
-- [ ] Check if dbNSFP5.1a download completed
-- [ ] Update VEP runner to use new dbNSFP if available
-- [ ] Enable ClinPred, dbscSNV, VARITY plugins
-- [ ] Run full plugin validation
-
-### 3. Input Validation Module
+### 1. Input Validation & Patient Context (High Priority)
 - [ ] Create `src/annotation_engine/input_validator.py`
   - VCF format validation (valid headers, required fields)
   - Multi-sample detection logic
@@ -32,7 +27,7 @@
   - Case metadata management
   - Sample type inference
 
-### 4. Workflow Router Implementation
+### 2. Workflow Router Implementation
 - [ ] Create `src/annotation_engine/workflow_router.py`
   - Define tumor-only vs tumor-normal pathways
   - Set KB priority orders per pathway
@@ -41,59 +36,92 @@
 - [ ] Update evidence_aggregator.py to use workflow context
 - [ ] Update tiering.py for pathway-specific rules
 
-### 5. Performance Optimization
-- [ ] Profile VEP execution with 26 plugins
-- [ ] Implement plugin data pre-loading
-- [ ] Add progress bars for long operations
-- [ ] Cache warming strategy for common genes
+### 3. Performance & Production Readiness
+- [ ] Add memory usage tracking
+  - Log peak memory during annotation
+  - Identify memory bottlenecks
+- [ ] Document plugin data sources
+  - Create PLUGIN_DATA_SOURCES.md
+  - Include download links and versions
+- [ ] Production deployment configuration
+  - Docker optimization for GA4GH modules
+  - API endpoint setup for service-info
 
-## 💡 Quick Wins (< 1 hour each)
+### 4. Integration Testing with GA4GH
+- [ ] End-to-end test: VCF → VRS → VICC → Phenopacket
+- [ ] Validate VRS IDs against known variants
+- [ ] Test VICC concordance analysis
+- [ ] Verify Phenopacket schema compliance
 
-1. **Add progress logging to VEP runner**
-   - Users need feedback during 77-second runs
-   - Simple tqdm integration
+## 💡 Quick Wins (< 30 minutes each)
 
-2. **Create plugin status command**
-   - `annotation-engine --check-plugins`
-   - Shows which plugins are ready/missing
+1. **Update CLI for GA4GH formats**
+   - Add `--output-format phenopacket`
+   - Add `--vrs-normalize` flag
+   - Add `--export-va` option
 
-3. **Add memory usage tracking**
-   - Log peak memory during annotation
-   - Identify memory bottlenecks
+2. **Create GA4GH usage examples**
+   - Example commands in README
+   - Sample phenopacket output
+   - VRS ID generation demo
 
-4. **Document plugin data sources**
-   - Create PLUGIN_DATA_SOURCES.md
-   - Include download links and versions
+3. **Add concordance metrics to output**
+   - Show when multiple DBs agree
+   - Display confidence based on concordance
+   - Flag discordant interpretations
 
 ## 🔧 Technical Debt
 
-1. **Error Messages**
-   - VEP failures need clearer diagnostics
-   - Add suggestions for common issues
-   - Structured error codes
+1. **Configuration Management**
+   - Move GA4GH endpoints to config
+   - Add VICC API key support
+   - Configurable VRS normalization
 
-2. **Configuration**
-   - Move hardcoded paths to config.yaml
-   - Environment variable support
-   - Plugin enable/disable flags
+2. **Error Handling**
+   - Better VICC query failure messages
+   - VRS normalization error recovery
+   - Phenopacket validation errors
 
-3. **Logging**
-   - Structured JSON logging option
-   - Separate log levels per module
-   - Performance metrics collection
+3. **Caching Strategy**
+   - Cache VRS IDs for variants
+   - Cache VICC query results
+   - Implement TTL for external queries
 
-## 🚀 Next Session Starting Points
+## 🚀 Next Steps Priority Order
 
-```bash
-# Check test status
-poetry run pytest -x  # Stop on first failure
+1. **Input validation** - Critical for production use
+2. **Workflow router** - Enables tumor-normal support
+3. **CLI updates** - Expose GA4GH functionality
+4. **Integration tests** - Validate full pipeline
+5. **Performance optimization** - For production scale
 
-# Validate current setup
-poetry run python scripts/validate_knowledge_bases.py
+## 📊 Current System Status
 
-# Check dbNSFP download
-ls -lh .refs/functional_predictions/plugin_data/pathogenicity/dbNSFP5.1a*
+- **Test Suite**: ✅ All tests passing (0 failures)
+- **CGC/VICC**: ✅ Fully implemented with cross-DB concordance
+- **GA4GH**: ✅ Comprehensive integration complete
+- **VEP Plugins**: ✅ 26 plugins configured and validated
+- **Knowledge Bases**: ✅ OncoKB, CIViC, ClinVar, COSMIC integrated
+- **Documentation**: ✅ Extensive logs and implementation guides
 
-# Test with all plugins
-poetry run annotation-engine --test --verbose
-```
+## 🎯 Phase 3 Preview (After Current Sprint)
+
+1. **Web API Development**
+   - RESTful endpoints for all functionality
+   - GA4GH service-info endpoint
+   - Batch processing API
+
+2. **Database Backend**
+   - PostgreSQL schema for results
+   - Variant interpretation history
+   - Audit trail for clinical use
+
+3. **Clinical Report Generation**
+   - Automated report templates
+   - Canned text integration
+   - PDF export with interpretations
+
+4. **Real-time KB Updates**
+   - Automated OncoKB sync
+   - CIViC webhook integration
+   - Version tracking for interpretations

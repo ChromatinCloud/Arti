@@ -1,6 +1,6 @@
 # Annotation-Engine
 
-> **Status:** Comprehensive knowledge base system implemented – ready for Phase 1 development  
+> **Status:** Phase 2 Active Development – CGC/VICC oncogenicity classification implemented  
 > **Goal:** A reproducible CLI that ingests a tumor‐only or matched‐pair VCF, annotates each variant with AMP 2017 and VICC 2022 evidence, assigns tiers, emits confidence scores, and writes machine-readable JSON for downstream report generation.
 
 ---
@@ -8,10 +8,10 @@
 ## Why this repo exists
 
 1. **Clinical need** – Labs require repeatable, auditable variant interpretation that keeps pace with evolving guidelines.
-2. **Engineering goal** – Achieve high coverage with comprehensive external knowledge bases: VEP + 33 curated clinical databases covering all major genomics resources.
+2. **Engineering goal** – Achieve high coverage with comprehensive external knowledge bases: VEP + 42 curated clinical databases covering all major genomics resources.
 3. **Design principle** – Build around a modular rules engine so guideline updates are YAML-driven, not code rewrites.
 
-For detailed architecture, see `docs/ANNOTATION_BLUEPRINT.md` (full spec) and `docs/ROADMAP.md` (phase timeline).
+For detailed architecture, see `docs/ANNOTATION_BLUEPRINT.md` (full spec) and `docs/IMPLEMENTATION_ROADMAP.md` (phase timeline and progress).
 
 ---
 
@@ -33,13 +33,13 @@ poetry install --no-root
 poetry run pytest -q
 
 # Annotate tumor-only VCF
-poetry run python cli.py example.vcf --cancer-type lung --out example.json
+poetry run annotation-engine example.vcf --cancer-type lung --out example.json
 
 # Annotate tumor-normal pair
-poetry run python cli.py --tumor-vcf tumor.vcf --normal-vcf normal.vcf --cancer-type lung --out results.json
+poetry run annotation-engine --tumor-vcf tumor.vcf --normal-vcf normal.vcf --cancer-type lung --out results.json
 
 # Provide tumor purity for enhanced confidence scoring
-poetry run python cli.py example.vcf --cancer-type lung --tumor-purity 0.75 --out example.json
+poetry run annotation-engine example.vcf --cancer-type lung --tumor-purity 0.75 --out example.json
 ```
 
 ---
@@ -69,6 +69,8 @@ Our annotation engine integrates **42 curated knowledge bases** covering all maj
 - Emerging evidence, novel findings → Tier IIE
 
 #### 2. **VICC/CGC Guidelines (2022)** - Somatic Oncogenicity Assessment
+
+**New in Phase 2:** Full CGC/VICC classifier implementation with comprehensive evidence scoring, integrating OncoKB evidence levels and ClinVar pathogenicity data.
 
 **Evidence Codes and Point System:**
 
@@ -341,7 +343,11 @@ annotation-engine/
 ├── docs/
 │   ├── ANNOTATION_BLUEPRINT.md   # Detailed clinical requirements
 │   ├── KB_DOWNLOAD_BLUEPRINT.md  # Knowledge base documentation
-│   └── ROADMAP.md                # Development phases
+│   ├── IMPLEMENTATION_ROADMAP.md # Development phases and progress
+│   ├── CGC_VICC_IMPLEMENTATION.md # CGC/VICC classifier details
+│   ├── GA4GH_INTEGRATION_PLAN.md # GA4GH standards integration
+│   ├── ONCOKB_CLINVAR_INTEGRATION.md # OncoKB/ClinVar mapping
+│   └── INTER_DATABASE_CONCORDANCE_BEST_PRACTICES.md # Multi-KB integration
 └── .refs/                        # Downloaded knowledge bases (organized by purpose)
     ├── clinical_evidence/        # Clinical significance and evidence
     │   ├── clinvar/             # ClinVar VCF and TSV files

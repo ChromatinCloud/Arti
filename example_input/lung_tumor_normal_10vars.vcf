@@ -1,0 +1,51 @@
+##fileformat=VCFv4.2
+##fileDate=20250618
+##source=annotation-engine-test-generator
+##reference=GRCh38
+##contig=<ID=1,length=248956422>
+##contig=<ID=2,length=242193529>
+##contig=<ID=3,length=198295559>
+##contig=<ID=4,length=190214555>
+##contig=<ID=5,length=181538259>
+##contig=<ID=6,length=170805979>
+##contig=<ID=7,length=159345973>
+##contig=<ID=8,length=145138636>
+##contig=<ID=9,length=138394717>
+##contig=<ID=10,length=133797422>
+##contig=<ID=11,length=135086622>
+##contig=<ID=12,length=133275309>
+##contig=<ID=13,length=114364328>
+##contig=<ID=14,length=107043718>
+##contig=<ID=15,length=101991189>
+##contig=<ID=16,length=90338345>
+##contig=<ID=17,length=83257441>
+##contig=<ID=18,length=80373285>
+##contig=<ID=19,length=58617616>
+##contig=<ID=20,length=64444167>
+##contig=<ID=21,length=46709983>
+##contig=<ID=22,length=50818468>
+##contig=<ID=X,length=156040895>
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##INFO=<ID=GENE,Number=1,Type=String,Description="Gene symbol">
+##INFO=<ID=VARIANT_CLASS,Number=1,Type=String,Description="Sequence Ontology variant class">
+##INFO=<ID=CLINVAR_SIG,Number=1,Type=String,Description="ClinVar clinical significance">
+##INFO=<ID=ONCOKB_LEVEL,Number=1,Type=String,Description="OncoKB evidence level">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for ref and alt alleles">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth">
+##FORMAT=<ID=VAF,Number=A,Type=Float,Description="Variant allele frequency">
+##tumor_type=lung
+##mutation_signature=smoking
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NORMAL	TUMOR
+1	168930675	.	G	T	50	PASS	GENE=GENE2775;VARIANT_CLASS=SNV;CLINVAR_SIG=Uncertain_significance;AC=1;AF=0.0678;AN=2	GT:AD:DP:VAF	0/0:130,0:130:0.000	0/1:52,42:94:0.451
+1	175597288	.	C	T	22	PASS	GENE=GENE7689;VARIANT_CLASS=SNV;CLINVAR_SIG=Uncertain_significance;AC=1;AF=0.0126;AN=2	GT:AD:DP:VAF	0/0:46,0:46:0.000	0/1:35,31:66:0.482
+11	93656235	.	N	<DEL>	34	PASS	GENE=GENE4538;VARIANT_CLASS=copy_number_variant;SVTYPE=DEL;SVLEN=-905;CLINVAR_SIG=Likely_benign;ONCOKB_LEVEL=LEVEL_R1;AC=1;AF=0.6598;AN=2	GT:AD:DP:VAF	0/0:90,0:90:0.000	0/1:49,93:142:0.660
+14	15182482	.	C	T	54	PASS	GENE=GENE4289;VARIANT_CLASS=SNV;CLINVAR_SIG=Benign;AC=1;AF=0.0141;AN=2	GT:AD:DP:VAF	0/0:43,0:43:0.000	0/1:34,27:61:0.446
+15	73057492	.	N	<DEL>	45	PASS	GENE=GENE6992;VARIANT_CLASS=copy_number_variant;SVTYPE=DEL;SVLEN=-98647;CLINVAR_SIG=Uncertain_significance;AC=1;AF=0.0099;AN=2	GT:AD:DP:VAF	0/0:146,0:146:0.000	0/1:79,88:167:0.527
+17	32878027	.	C	G	41	PASS	GENE=GENE5835;VARIANT_CLASS=SNV;CLINVAR_SIG=Benign;AC=1;AF=0.0749;AN=2	GT:AD:DP:VAF	0/0:33,0:33:0.000	0/1:75,77:152:0.510
+20	26869977	.	N	<BND>	54	PASS	GENE=VHL;VARIANT_CLASS=structural_variant;SVTYPE=BND;CLINVAR_SIG=Pathogenic;ONCOKB_LEVEL=LEVEL_4;AC=1;AF=0.0674;AN=2	GT:AD:DP:VAF	0/0:43,0:43:0.000	0/1:29,39:68:0.575
+5	57762597	.	C	CT	20	PASS	GENE=SMAD4;VARIANT_CLASS=indel;CLINVAR_SIG=Uncertain_significance;AC=1;AF=0.0693;AN=2	GT:AD:DP:VAF	0/0:145,0:145:0.000	0/1:81,6:87:0.069
+6	58560021	.	CT	C	26	PASS	GENE=GENE4868;VARIANT_CLASS=indel;CLINVAR_SIG=Pathogenic;AC=1;AF=0.0857;AN=2	GT:AD:DP:VAF	0/0:65,0:65:0.000	0/1:71,62:133:0.474
+X	64906952	.	G	A	33	PASS	GENE=GENE8450;VARIANT_CLASS=SNV;CLINVAR_SIG=Uncertain_significance;ONCOKB_LEVEL=LEVEL_2;AC=1;AF=0.1188;AN=2	GT:AD:DP:VAF	0/1:39,39:78:0.503	0/1:147,19:166:0.119

@@ -73,7 +73,7 @@ Annotation-Engine is a reproducible CLI that ingests a tumor-only or matched-pai
 ### TODO.md and Implementation Guide Synchronization Policy
 **File Relationship:**
 - `TODO.md` = Current sprint backlog (actionable tasks)
-- `docs/CURRENT_IMPLEMENTATION_GUIDE.md` = Project status and context
+- `docs/IMPLEMENTATION_ROADMAP.md` = Project status and context
 
 **Synchronization Rules:**
 1. **When TODO.md changes:**
