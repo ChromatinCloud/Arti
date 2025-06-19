@@ -72,3 +72,19 @@ KBs/
 # Ignore contents of internal data directories
 # We will track the directory structure using individual .gitignore files (see notes below)
 internal/**
+
+# Resources directory - track structure and docs, but not data files
+resources/**/*.bed
+resources/**/*.bed.gz
+resources/**/*.vcf
+resources/**/*.vcf.gz
+resources/**/*.bcf
+resources/**/*.bcf.gz
+resources/**/*.tbi
+resources/**/*.csi
+# Keep documentation and config files
+!resources/CONTENTS.md
+!resources/**/*.yaml
+!resources/**/*.yml
+!resources/**/*.json
+!resources/**/*.md

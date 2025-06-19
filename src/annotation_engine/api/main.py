@@ -14,7 +14,7 @@ import uuid
 from contextlib import asynccontextmanager
 
 # API Router imports
-from .routers import auth, variants, cases, interpretations, evidence, search, analytics, users
+from .routers import auth, variants, cases, interpretations, evidence, search, analytics, users, jobs, tech_filtering
 from .core.config import get_settings
 from .core.database import init_database
 from .core.security import get_current_user
@@ -139,12 +139,14 @@ async def health_check():
 # API route registration
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(variants.router, prefix="/api/v1/variants", tags=["Variant Processing"])
+app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Job Management"])
 app.include_router(cases.router, prefix="/api/v1/cases", tags=["Clinical Workflow"])
 app.include_router(interpretations.router, prefix="/api/v1/interpretations", tags=["Interpretations"])
 app.include_router(evidence.router, prefix="/api/v1/evidence", tags=["Clinical Evidence"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["Search & Discovery"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["User Management"])
+app.include_router(tech_filtering.router, tags=["Technical Filtering"])
 
 
 # Root endpoint with API information

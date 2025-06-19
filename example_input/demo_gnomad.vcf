@@ -1,0 +1,8 @@
+##fileformat=VCFv4.2
+##contig=<ID=1>
+##contig=<ID=7>
+##contig=<ID=17>
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+1	115256530	.	T	C	.	.	.
+7	140453136	.	A	T	.	.	.
+17	7579472	.	G	C	.	.	.

@@ -1,0 +1,72 @@
+/* Tumor-Normal Mode Theme - Cool, comparative palette */
+:root[data-mode="tumor-normal"] {
+  --primary: #2563EB;      /* Blue-600 */
+  --primary-dark: #1D4ED8; /* Blue-700 */
+  --primary-light: #3B82F6; /* Blue-500 */
+  --secondary: #10B981;    /* Emerald-500 */
+  --accent: #3B82F6;       /* Blue-500 */
+  --background: #EFF6FF;   /* Blue-50 */
+  --surface: #FFFFFF;
+  --text: #1E3A8A;         /* Blue-900 */
+  --text-secondary: #1E40AF; /* Blue-800 */
+}
+
+/* Slider styling for tumor-normal mode */
+:root[data-mode="tumor-normal"] .slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--primary);
+  cursor: pointer;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+:root[data-mode="tumor-normal"] .slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--primary);
+  cursor: pointer;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+:root[data-mode="tumor-normal"] .slider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, 
+    var(--primary-light) 0%, 
+    var(--primary-light) var(--value), 
+    #E5E7EB var(--value), 
+    #E5E7EB 100%);
+}
+
+/* Custom focus states */
+:root[data-mode="tumor-normal"] input:focus,
+:root[data-mode="tumor-normal"] select:focus {
+  ring-color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Button hover states */
+:root[data-mode="tumor-normal"] button:hover {
+  filter: brightness(0.95);
+}
+
+/* Card shadows with theme tint */
+:root[data-mode="tumor-normal"] .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.05);
+}
+
+:root[data-mode="tumor-normal"] .shadow {
+  box-shadow: 0 1px 3px 0 rgba(37, 99, 235, 0.1), 
+              0 1px 2px -1px rgba(37, 99, 235, 0.06);
+}
+
+/* Special styling for tumor-normal comparison elements */
+:root[data-mode="tumor-normal"] .comparison-badge {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}

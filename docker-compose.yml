@@ -1,40 +1,85 @@
 version: '3.8'
 
 services:
-  annotation-engine:
+  # API Server
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: annotation-engine
+      dockerfile: Dockerfile.api
+    container_name: arti-api
     volumes:
-      # Mount local data directories
-      - ./data:/app/data
+      - ./uploads:/app/uploads
       - ./results:/app/results
-      - ./.refs:/app/.refs
-      # Mount for development (optional)
-      - ./src:/app/src:ro
+      - ./temp:/app/temp
+      - ./.refs:/app/.refs:ro
+      - ./src:/app/src
     environment:
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-key.json
-      - PYTHONPATH=/app/src
+      - DATABASE_URL=postgresql://arti:arti@postgres/arti_db
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=true
     ports:
       - "8000:8000"
-    command: ["python", "-m", "annotation_engine", "--api-mode"]
+    command: ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # RQ Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: arti-worker
+    volumes:
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+      - ./temp:/app/temp
+      - ./.refs:/app/.refs:ro
+      - ./src:/app/src
+    environment:
+      - DATABASE_URL=postgresql://arti:arti@postgres/arti_db
+      - REDIS_URL=redis://redis:6379/0
+    command: ["python", "-m", "src.api.tasks"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: arti-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
 
   postgres:
     image: postgres:15
     container_name: annotation-postgres
     environment:
-      POSTGRES_DB: annotation_engine
-      POSTGRES_USER: annotator
-      POSTGRES_PASSWORD: genomics_secure_2024
+      POSTGRES_DB: arti_db
+      POSTGRES_USER: arti
+      POSTGRES_PASSWORD: arti
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arti"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -44,6 +89,11 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # VEP container for variant annotation
   vep:

@@ -1,0 +1,62 @@
+/* Tumor-Only Mode Theme - Warm, focused palette */
+:root[data-mode="tumor-only"] {
+  --primary: #DC2626;      /* Red-600 */
+  --primary-dark: #B91C1C; /* Red-700 */
+  --primary-light: #EF4444; /* Red-500 */
+  --secondary: #F59E0B;    /* Amber-500 */
+  --accent: #EF4444;       /* Red-500 */
+  --background: #FEF2F2;   /* Red-50 */
+  --surface: #FFFFFF;
+  --text: #7F1D1D;         /* Red-900 */
+  --text-secondary: #991B1B; /* Red-800 */
+}
+
+/* Slider styling for tumor-only mode */
+:root[data-mode="tumor-only"] .slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--primary);
+  cursor: pointer;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+:root[data-mode="tumor-only"] .slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--primary);
+  cursor: pointer;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+:root[data-mode="tumor-only"] .slider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, 
+    var(--primary-light) 0%, 
+    var(--primary-light) var(--value), 
+    #E5E7EB var(--value), 
+    #E5E7EB 100%);
+}
+
+/* Custom focus states */
+:root[data-mode="tumor-only"] input:focus,
+:root[data-mode="tumor-only"] select:focus {
+  ring-color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Button hover states */
+:root[data-mode="tumor-only"] button:hover {
+  filter: brightness(0.95);
+}
+
+/* Card shadows with theme tint */
+:root[data-mode="tumor-only"] .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(220, 38, 38, 0.05);
+}
+
+:root[data-mode="tumor-only"] .shadow {
+  box-shadow: 0 1px 3px 0 rgba(220, 38, 38, 0.1), 
+              0 1px 2px -1px rgba(220, 38, 38, 0.06);
+}

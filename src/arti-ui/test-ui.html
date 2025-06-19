@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arti UI Test</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f3f4f6;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .button:hover {
+      background: #2563eb;
+    }
+    .interpretation-form {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+    }
+    .interpretation-form textarea {
+      width: 100%;
+      min-height: 120px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .sort-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      align-items: center;
+    }
+    .sort-controls select, .sort-controls button {
+      padding: 6px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: white;
+      font-size: 14px;
+    }
+    .interpretation-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: white;
+    }
+    .interpretation-item:hover {
+      background: #f9fafb;
+    }
+    .interpretation-meta {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-blue {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+    .badge-green {
+      background: #dcfce7;
+      color: #166534;
+    }
+  </style>
+</head>
+<body>
+  <h1>Arti UI - Interpretation Management Demo</h1>
+  
+  <div class="card">
+    <h2>Clinical Interpretation Features</h2>
+    <p>This demo shows the enhanced interpretation functionality for clinicians:</p>
+    <ul>
+      <li><strong>Custom Interpretations:</strong> Clinicians can write their own interpretations when existing templates don't fit</li>
+      <li><strong>Sorting Options:</strong> Sort by most recent, highest confidence, or disease relevance</li>
+      <li><strong>Disease Filtering:</strong> Filter interpretations to show only those relevant to the current disease context</li>
+      <li><strong>Template Management:</strong> Browse, copy, and edit existing interpretation templates</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Available Interpretations for BRAF V600E</h3>
+    
+    <div class="sort-controls">
+      <label>Sort by:</label>
+      <select id="sortSelect">
+        <option value="recent">Most Recent</option>
+        <option value="confidence">Highest Confidence</option>
+        <option value="disease">Disease Relevance</option>
+      </select>
+      
+      <button id="diseaseFilter" class="badge badge-blue">🔬 Melanoma Only</button>
+      <button id="customBtn" class="button">+ Write Custom</button>
+    </div>
+
+    <div id="interpretationList">
+      <div class="interpretation-item">
+        <div><strong>BRAF V600E - Melanoma Standard</strong></div>
+        <div class="interpretation-meta">
+          Confidence: 98% • Disease: Melanoma, Skin Cancer • Modified: 6/19/2025
+          <span class="badge badge-green">Highest Confidence</span>
+        </div>
+        <div style="font-size: 14px; margin-top: 8px; color: #374151;">
+          The BRAF p.V600E missense variant is a well-characterized oncogenic driver mutation found in approximately 50% of melanomas...
+        </div>
+      </div>
+
+      <div class="interpretation-item">
+        <div><strong>BRAF V600E - Colorectal Context</strong></div>
+        <div class="interpretation-meta">
+          Confidence: 94% • Disease: Colorectal Cancer • Modified: 6/18/2025
+          <span class="badge badge-blue">Disease Specific</span>
+        </div>
+        <div style="font-size: 14px; margin-top: 8px; color: #374151;">
+          The BRAF p.V600E variant in colorectal cancer represents a distinct molecular subtype with poor prognosis...
+        </div>
+      </div>
+
+      <div class="interpretation-item">
+        <div><strong>BRAF V600E - Pan-Cancer</strong></div>
+        <div class="interpretation-meta">
+          Confidence: 85% • Disease: Pan-Cancer • Modified: 6/17/2025
+        </div>
+        <div style="font-size: 14px; margin-top: 8px; color: #374151;">
+          The BRAF p.V600E mutation is found across multiple cancer types and generally represents an oncogenic driver event...
+        </div>
+      </div>
+    </div>
+
+    <div id="customForm" class="interpretation-form" style="display: none;">
+      <h4>Write Custom Interpretation</h4>
+      <textarea placeholder="Enter your clinical interpretation for this variant...
+
+Consider including:
+- Clinical significance of the variant
+- Therapeutic implications
+- Disease-specific context
+- Supporting evidence
+- Treatment recommendations"></textarea>
+      <div style="margin-top: 10px;">
+        <button class="button">Save Interpretation</button>
+        <button onclick="document.getElementById('customForm').style.display='none'">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Key Features Implemented</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+      <div>
+        <h4>✅ Custom Interpretation Entry</h4>
+        <ul>
+          <li>Large text area for clinical writing</li>
+          <li>Save functionality with validation</li>
+          <li>Cancel option to discard changes</li>
+          <li>Placeholder text with guidance</li>
+        </ul>
+      </div>
+      <div>
+        <h4>✅ Sorting & Filtering</h4>
+        <ul>
+          <li>Sort by recency, confidence, disease relevance</li>
+          <li>Disease-specific filtering toggle</li>
+          <li>Visual indicators for filtered results</li>
+          <li>Template metadata display</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simple demo interactivity
+    document.getElementById('customBtn').onclick = function() {
+      const form = document.getElementById('customForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    };
+
+    document.getElementById('diseaseFilter').onclick = function() {
+      const btn = this;
+      if (btn.textContent.includes('Melanoma Only')) {
+        btn.textContent = '🔬 Show All';
+        btn.className = 'badge badge-green';
+        // Would filter the list in real implementation
+      } else {
+        btn.textContent = '🔬 Melanoma Only';
+        btn.className = 'badge badge-blue';
+      }
+    };
+
+    document.getElementById('sortSelect').onchange = function() {
+      console.log('Sorting by:', this.value);
+      // Would re-sort the interpretations list in real implementation
+    };
+  </script>
+</body>
+</html>

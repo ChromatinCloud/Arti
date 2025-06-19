@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tech Filtering Demo - Parent App Integration</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #555;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    .method-selector {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 4px;
+    }
+    .method-option {
+      margin: 10px 0;
+    }
+    iframe {
+      width: 100%;
+      height: 600px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Parent App → Tech Filtering Integration Demo</h1>
+    
+    <p>This demonstrates how a parent application would pass sample metadata to the technical filtering module.</p>
+    
+    <div class="form-group">
+      <label>Patient UID</label>
+      <input type="text" id="patientUID" value="PT001234" />
+    </div>
+    
+    <div class="form-group">
+      <label>Case ID</label>
+      <input type="text" id="caseID" value="CASE_2024_001" />
+    </div>
+    
+    <div class="row">
+      <div class="form-group">
+        <label>OncoTree Code</label>
+        <select id="oncotreeCode">
+          <option value="">-- Select Cancer Type --</option>
+          <option value="SKCM">SKCM - Melanoma</option>
+          <option value="LUAD">LUAD - Lung Adenocarcinoma</option>
+          <option value="BRCA">BRCA - Breast Cancer</option>
+          <option value="COAD">COAD - Colon Adenocarcinoma</option>
+          <option value="PRAD">PRAD - Prostate Adenocarcinoma</option>
+          <option value="GBM">GBM - Glioblastoma</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Tumor Purity (%)</label>
+        <input type="number" id="tumorPurity" value="75" min="0" max="100" step="1" />
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label>Specimen Type</label>
+      <select id="specimenType">
+        <option value="FFPE">FFPE</option>
+        <option value="FreshFrozen">Fresh Frozen</option>
+        <option value="Blood">Blood</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    
+    <div class="method-selector">
+      <h3>Integration Method</h3>
+      <div class="method-option">
+        <label>
+          <input type="radio" name="method" value="url" checked />
+          URL Parameters (for new window/tab)
+        </label>
+      </div>
+      <div class="method-option">
+        <label>
+          <input type="radio" name="method" value="postMessage" />
+          PostMessage API (for iframe/same window)
+        </label>
+      </div>
+    </div>
+    
+    <button onclick="launchTechFiltering()">Launch Technical Filtering</button>
+    
+    <div id="iframe-container" style="display: none;">
+      <h3>Technical Filtering Module</h3>
+      <iframe id="tech-filtering-frame"></iframe>
+    </div>
+  </div>
+  
+  <script>
+    function launchTechFiltering() {
+      const metadata = {
+        patientUID: document.getElementById('patientUID').value,
+        caseID: document.getElementById('caseID').value,
+        oncotreeCode: document.getElementById('oncotreeCode').value,
+        tumorPurity: parseFloat(document.getElementById('tumorPurity').value) / 100,
+        specimenType: document.getElementById('specimenType').value
+      };
+      
+      const method = document.querySelector('input[name="method"]:checked').value;
+      
+      if (method === 'url') {
+        // Method 1: URL Parameters
+        const params = new URLSearchParams();
+        Object.entries(metadata).forEach(([key, value]) => {
+          if (value) params.append(key, value.toString());
+        });
+        
+        const url = `http://localhost:3001?${params.toString()}`;
+        window.open(url, '_blank');
+        
+      } else {
+        // Method 2: PostMessage API
+        const iframe = document.getElementById('tech-filtering-frame');
+        const container = document.getElementById('iframe-container');
+        
+        container.style.display = 'block';
+        iframe.src = 'http://localhost:3001';
+        
+        // Wait for iframe to load, then send metadata
+        iframe.onload = () => {
+          setTimeout(() => {
+            iframe.contentWindow.postMessage({
+              type: 'SAMPLE_METADATA',
+              metadata: metadata
+            }, 'http://localhost:3001');
+          }, 1000);
+        };
+      }
+    }
+  </script>
+</body>
+</html>
